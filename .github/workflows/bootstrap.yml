@@ -1,0 +1,33 @@
+name: Install Domashnie Zapasy v0.1
+on:
+  push:
+    paths:
+      - 'bundle/part-05.txt'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack and check site
+        shell: bash
+        run: |
+          cat bundle/part-*.txt | base64 --decode | tar -xz
+          node --check app.js
+          test -f index.html
+          test -f styles.css
+          test -f manifest.webmanifest
+          test -f icons/icon-192.png
+          test -f icons/icon-512.png
+      - name: Commit app files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html app.js styles.css sw.js manifest.webmanifest icons README.md PLAN.md
+          git rm -r bundle
+          git rm .github/workflows/bootstrap.yml
+          git diff --cached --quiet || git commit -m "Publish Domashnie Zapasy v0.1"
+          git push
