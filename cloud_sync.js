@@ -8,7 +8,7 @@ const randid=()=>globalThis.crypto?.randomUUID?.()||Math.random().toString(36).s
 const deviceId=localStorage.getItem(DKEY)||randid();
 localStorage.setItem(DKEY,deviceId);
 const pending=new Map();
-let hooks=null,applying=false,checking=false,checkAt=0;
+let hooks=null,applying=false,checking=false,checkAt=0,editTimer=null;
 const jsonRead=(k,fallback)=>{try{return JSON.parse(localStorage.getItem(k))||fallback}catch(_){return fallback}};
 const config=()=>jsonRead(CKEY,null);
 const state=()=>jsonRead(SKEY,{rev:null,dirty:false,changes:0,lastSync:null,conflict:false,pendingOp:null});
@@ -32,6 +32,10 @@ function disconnect(){
 function markDirty(){
  if(applying)return;
  const s=state();s.dirty=true;s.changes=(Number(s.changes)||0)+1;if(s.pendingOp)s.uncertainOp=s.pendingOp;stateWrite(s);
+ if(config()&&navigator.onLine){
+  clearTimeout(editTimer);
+  editTimer=setTimeout(()=>{if(hooks?.idle?.())synchronize().catch(e=>console.warn('Sync:',shortError(e)));},1800);
+ }
 }
 function _receive(result){
  const nonce=String(result?.nonce||'');
