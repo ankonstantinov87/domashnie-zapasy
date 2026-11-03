@@ -12,7 +12,7 @@ function parseMessage(input){
  const items=[];
  for(const line of lines){
   let text=line.trim(),noteParts=[];
-  const store=/магнит/iu.test(text)?'Магнит':/(?:вкусвилл|вкус вилл|\bвв\b|[\s(]вв[)\s]|во\s+вв)/iu.test(text)?'ВкусВилл':'';
+  const store=/магнит/iu.test(text)?'Магнит':/(?:вкусвилл|вкус вилл|(?:^|[\s(])вв(?=$|[\s),.])|во\s+вв)/iu.test(text)?'ВкусВилл':'';
   const alt=text.match(/\s+(?:либо|или|можно|вместо)\s+/iu);
   if(alt){const idx=alt.index;noteParts.push(text.slice(idx).trim());text=text.slice(0,idx).trim();}
   text=text.replace(/(?:^|[\s(,])(?:магнит|вкусвилл|вкус вилл|вв)(?=$|[\s),.])/giu,' ').trim();
@@ -41,7 +41,7 @@ function phraseScore(query,phrase){
  let matched=0;
  const used=new Set();
  for(const word of wa){
-  const idx=wb.findIndex((w,i)=>!used.has(i)&&(w===word||(w.length>=4&&word.length>=4&&w.slice(0,4)===word.slice(0,4))));
+  const idx=wb.findIndex((w,i)=>!used.has(i)&&(w===word||(w.length>=5&&word.length>=5&&w.slice(0,Math.min(6,w.length,word.length))===word.slice(0,Math.min(6,w.length,word.length)))));
   if(idx>=0){matched++;used.add(idx)}
  }
  if(!matched)return 0;
@@ -54,7 +54,7 @@ function suggest(query,existing=[],learned={}){
  const add=(label,aliases=[],bonus=0)=>{
   const key=normalize(label);if(!key)return;
   const score=Math.max(...[label,...aliases].map(word=>phraseScore(query,word)))+bonus;
-  if(score<65)return;
+  if(score<75)return;
   const old=names.get(key);if(!old||score>old.score)names.set(key,{name:label,score});
  };
  for(const p of existing)add(p.name||p,[],9);
