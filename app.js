@@ -26,7 +26,13 @@ function pickOptions(arr,sel='',empty=false){return `${empty?'<option value="">�
 function transaction(names,mode='readonly'){return db.transaction(names,mode);}
 function request(req){return new Promise((res,rej)=>{req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}
 function txnComplete(tx){return new Promise((res,rej)=>{tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error||Error('Ошибка базы'));tx.onabort=()=>rej(tx.error||Error('Операция отменена'));});}
-function writeMany(names,fn){const tx=transaction(names,'readwrite'),done=txnComplete(tx);fn(tx);return done;}
+function writeMany(names,fn){
+ const tx=transaction(names,'readwrite'),done=txnComplete(tx);
+ fn(tx);
+ return done.then(()=>{
+  if(names.some(x=>x!=='meta')&&window.PantryCloud&&!window.PantryCloud.applying)window.PantryCloud.markDirty();
+ });
+}
 const all=name=>request(transaction([name]).objectStore(name).getAll());
 const get=(name,key)=>request(transaction([name]).objectStore(name).get(key));
 const put=(name,value)=>writeMany([name],tx=>tx.objectStore(name).put(value));
@@ -112,8 +118,54 @@ function renderAudit(s,rows){const list=[...rows].sort((a,b)=>a.name.localeCompa
   return `<h1>Быстрая ревизия</h1><p class="sub">Впишите, сколько фактически лежит дома, и сохраните только изменения. Сроки и места хранения существующих партий сохраняются при уменьшении остатков.</p>${list.length?`<form data-form="audit"><div class="card">${list.map(r=>`<div class="inline-form" style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="title">${E(r.name)}<div class="meta">Сейчас ${amountText(r.qty,E(r.unit))}</div></div><input type="number" inputmode="decimal" min="0" step="${['уп.','шт.'].includes(r.unit)?1:'any'}" name="audit_${r.id}" data-audit="${r.id}" value="${r.qty}" aria-label="Количество ${E(r.name)}"/><span class="small muted">${E(r.unit)}</span></div>`).join('')}</div><button type="submit" class="btn primary full">Сохранить изменения</button></form>`:empty('📋','Пока нечего проверять','Добавьте товары, чтобы начать ревизию.','<button class="btn primary" data-act="newProduct">＋ Добавить товар</button>')}<div class="spaced"><button class="btn secondary full" data-act="newProduct">Добавить новый товар</button></div>`;
 }
 function renderShopping(s,rows){const list=s.shopping.filter(x=>x.status==='open').sort((a,b)=>a.createdAt.localeCompare(b.createdAt));const restock=needRestock(rows);return `<h1>Покупки</h1><p class="sub">Сначала формируйте список. Домашние запасы меняются только после подтверждения покупки.</p><div class="actions"><button class="btn primary" data-act="newShopping">＋ Добавить</button><button class="btn secondary" data-act="importText">⇪ Импорт текста</button></div><button class="btn primary full spaced" data-act="receiptInput">▤ Сверить покупки по чеку</button>${restock.length?`<div class="card soft spaced"><div class="row"><div class="grow"><div class="title">Есть товары ниже минимума</div><div class="meta">${restock.length} наименований. Можно добавить в закупку до целевого запаса.</div></div><button class="btn small secondary" data-act="restock">Добавить</button></div></div>`:''}${sectionTitle('Список к покупке',`<span class="pill ok">${list.length} поз.</span>`)}${list.length?`<div class="card">${list.map(item=>`<div class="stockrow"><input class="check" type="checkbox" disabled title="Покупка оформляется кнопкой Куплено"/><div class="grow"><div class="name">${E(item.name)}</div><div class="meta">${amountText(item.qty,E(item.unit))}${item.store?' · '+E(item.store):''}</div>${item.note?`<div class="purchase-hint">${E(item.note)}</div>`:''}</div><div class="stack" style="gap:5px"><button class="btn primary small" data-act="buy" data-id="${item.id}">Куплено</button><button class="btn text small" data-act="editShopping" data-id="${item.id}">Изменить</button><button class="btn text small" data-act="deleteShopping" data-id="${item.id}">Убрать</button></div></div>`).join('')}</div>`:empty('🧺','Список пуст','Добавьте нужное или вставьте сообщение с покупками.')}<div class="notice">Кнопка «Куплено» открывает подтверждение количества, срока годности, места хранения и цены. Частично купленная позиция остаётся в списке.</div>`;}
+
+function cloudPanel(){
+ const cloud=window.PantryCloud,config=cloud?.config(),st=cloud?.state()||{};
+ const ready=Boolean(config);
+ const stateLabel=!ready?'Облако не подключено':st.conflict?'Конфликт версий: данные не перезаписаны':st.dirty?'Есть локальные изменения для отправки':st.lastSync?'Последняя синхронизация: '+new Date(st.lastSync).toLocaleString('ru-RU'):'Подключено, первая сверка ещё не выполнена';
+ return sectionTitle('Общая база и синхронизация')+
+ '<div class="card"><div class="title">Google Таблица — приватная семейная база</div>'+
+ '<p class="sub spaced">Локальные запасы доступны без интернета. После настройки облака изменения будут передаваться при подключении, без ручного импорта JSON. При конфликте приложение не перезаписывает данные.</p>'+
+ '<div class="notice">'+E(stateLabel)+'</div>'+
+ '<div class="actions spaced"><button type="button" class="btn secondary" data-act="cloudConfig">'+(ready?'Изменить подключение':'Подключить облако')+'</button>'+
+ (ready?'<button type="button" class="btn primary" data-act="cloudSync">Синхронизировать</button>':'')+'</div>'+
+ (ready?'<div class="actions spaced"><button type="button" class="btn secondary small" data-act="cloudSeed">Первый перенос этой базы</button><button type="button" class="btn secondary small" data-act="cloudDisconnect">Отключить облако</button></div>':'')+
+ '<div class="meta spaced">Синхронизация будет активна только после настройки личного Google Apps Script. Пока подключение не выполнено, всё продолжает работать как раньше.</div></div>';
+}
+function cloudConfigDialog(){
+ const cfg=window.PantryCloud?.config();
+ showModal('<h2>Подключение общей базы</h2>'+
+ '<p class="sub">Введите адрес своего развёрнутого Google Apps Script и секретный ключ. Они сохраняются только в этом браузере и не входят в резервную копию JSON.</p>'+
+ '<form data-form="cloudConfig"><label>Адрес веб-приложения Apps Script</label>'+
+ '<input type="url" name="cloudUrl" required placeholder="https://script.google.com/macros/s/.../exec" value="'+E(cfg?.url||'')+'" />'+
+ '<label class="spaced">Секретный ключ</label><input name="cloudToken" type="password" autocomplete="off" required placeholder="Ключ из setupPantrySync()" />'+
+ '<div class="notice spaced">Никому не отправляйте секретный ключ и не добавляйте его в публичный GitHub. Перед первым переносом сохраните JSON-копию.</div>'+
+ modalFoot('Сохранить подключение')+'</form>');
+}
+async function applyCloudSnapshot(data){
+ if(!data||!['products','batches','movements','shopping','meta'].every(n=>Array.isArray(data[n])))throw Error('Неверный формат общей базы');
+ const prod=new Set(data.products.map(x=>x.id));
+ if(data.products.some(x=>!x.id||!x.name||!UNITS.includes(x.unit))||data.batches.some(x=>!prod.has(x.productId)||!(Number(x.qty)>0)))throw Error('Данные в облаке не прошли проверку');
+ await writeMany(STORES,tx=>{
+  for(const storeName of STORES){
+   const store=tx.objectStore(storeName);store.clear();
+   for(const row of data[storeName])store.put(row);
+  }
+ });
+}
+function cloudStatusText(result){
+ const names={
+  'disabled':'Облако не подключено','offline':'Нет интернета. Изменения остались на устройстве.','busy':'Синхронизация уже идёт.',
+  'editing':'Сначала сохраните текущую форму.','empty':'Общая база пока пуста.','up-to-date':'Данные уже синхронизированы.',
+  'pulled':'Получены изменения из общей базы.','uploaded':'Локальные изменения отправлены в облако.','conflict':'Обнаружен конфликт: данные не перезаписаны.',
+  'initial-local':'Сначала выполните первый перенос локальной базы.','initial-conflict':'Есть данные и здесь, и в облаке. Сначала сделайте копию и согласуйте объединение.',
+  'needs-another-pass':'Изменения зарегистрированы; повторите синхронизацию.','uncertain':'Нет подтверждения предыдущей отправки. Данные сохранены локально.'
+ };
+ return result.message||names[result.status]||String(result.status);
+}
+
 function renderSettings(s){const backup=s.meta.find(x=>x.id==='lastBackup')?.value;const bytes=JSON.stringify(s).length;const sum=s.movements.filter(x=>x.type==='purchase').reduce((a,x)=>a+(Number(x.amount)||0),0);
-  return `<h1>Настройки и данные</h1><p class="sub">Всё хранится локально на этом устройстве. Учёт не синхронизируется между телефонами.</p>${sectionTitle('Резервные копии')}<div class="card"><div class="title">Google Drive — через сохранение файла</div><p class="sub" style="margin:8px 0">Создайте JSON-копию, затем сохраните файл в Google Drive через меню Android или приложение «Файлы».</p><div class="actions"><button class="btn primary" data-act="backup">↓ Экспорт JSON</button><button class="btn secondary" data-act="restore">↑ Восстановить</button></div><div class="meta">${backup?'Последний экспорт: '+new Date(backup).toLocaleString('ru-RU'):'Резервная копия ещё не создавалась'} · Объём данных: ~${format(Math.ceil(bytes/1024))} КБ</div></div>${sectionTitle('Данные')}<div class="card"><div class="row"><div><div class="title">Товары и партии</div><div class="meta">${s.products.length} товаров · ${s.batches.length} партий</div></div></div><div class="row"><div><div class="title">Операции</div><div class="meta">${s.movements.length} записей · расходы ${formatMoney(sum)}</div></div></div><div class="row"><div class="grow"><div class="title">Экспорт таблицы CSV</div><div class="meta">Для Excel или другой программы</div></div><button class="btn small secondary" data-act="csv">Скачать</button></div></div>${sectionTitle('Проверка и обслуживание')}<div class="card"><button class="btn secondary full" data-act="demo">Добавить демонстрационные товары</button><p class="form-help">Демо-данные добавляются к существующим. Для чистого начала доступен сброс.</p><button class="btn danger full spaced" data-act="reset">Удалить все данные</button></div><button class="btn secondary full spaced" data-act="persistent">Попросить браузер сохранить локальные данные</button><p class="form-help">Браузер может отказать; резервная копия всё равно обязательна.</p><div class="notice">Версия 0.9 · Распознавание чеков без внешнего CDN, кликабельные карточки с каталогом, заметками и выбором названия. Фотоимпорт, полноценные рекомендации по хранению, замены и расширенная аналитика будут добавлены следующими этапами. Не вводите единственную копию важных данных, пока не проверите экспорт и восстановление.</div>`;
+  return `<h1>Настройки и данные</h1><p class="sub">Запасы хранятся локально и могут подключаться к общей облачной базе.</p>${cloudPanel()}${sectionTitle('Резервные копии')}<div class="card"><div class="title">Google Drive — через сохранение файла</div><p class="sub" style="margin:8px 0">Создайте JSON-копию, затем сохраните файл в Google Drive через меню Android или приложение «Файлы».</p><div class="actions"><button class="btn primary" data-act="backup">↓ Экспорт JSON</button><button class="btn secondary" data-act="restore">↑ Восстановить</button></div><div class="meta">${backup?'Последний экспорт: '+new Date(backup).toLocaleString('ru-RU'):'Резервная копия ещё не создавалась'} · Объём данных: ~${format(Math.ceil(bytes/1024))} КБ</div></div>${sectionTitle('Данные')}<div class="card"><div class="row"><div><div class="title">Товары и партии</div><div class="meta">${s.products.length} товаров · ${s.batches.length} партий</div></div></div><div class="row"><div><div class="title">Операции</div><div class="meta">${s.movements.length} записей · расходы ${formatMoney(sum)}</div></div></div><div class="row"><div class="grow"><div class="title">Экспорт таблицы CSV</div><div class="meta">Для Excel или другой программы</div></div><button class="btn small secondary" data-act="csv">Скачать</button></div></div>${sectionTitle('Проверка и обслуживание')}<div class="card"><button class="btn secondary full" data-act="demo">Добавить демонстрационные товары</button><p class="form-help">Демо-данные добавляются к существующим. Для чистого начала доступен сброс.</p><button class="btn danger full spaced" data-act="reset">Удалить все данные</button></div><button class="btn secondary full spaced" data-act="persistent">Попросить браузер сохранить локальные данные</button><p class="form-help">Браузер может отказать; резервная копия всё равно обязательна.</p><div class="notice">Версия 1.0 (подготовка) · Офлайн + подключаемая общая база, кликабельные карточки с каталогом, заметками и выбором названия. Фотоимпорт, полноценные рекомендации по хранению, замены и расширенная аналитика будут добавлены следующими этапами. Не вводите единственную копию важных данных, пока не проверите экспорт и восстановление.</div>`;
 }
 function formProduct(p={}){const edit=Boolean(p.id);return `<h2>${edit?'Изменить товар':'Новый товар'}</h2><form data-form="product" data-id="${E(p.id||'')}"><div class="form-grid"><div class="span2"><label>Название *</label><input name="name" placeholder="Например, молоко 2,5%" value="${E(p.name||'')}" required maxlength="120" autofocus /></div><div><label>Категория</label><select name="category">${pickOptions(CATEGORIES,p.category||'Другое')}</select></div><div><label>Единица учёта</label><select name="unit" ${edit?'disabled':''}>${pickOptions(UNITS,p.unit||'уп.')}</select>${edit?'<div class="form-help">Для сохранения остатков единица существующего товара пока не меняется.</div>':''}</div><div><label>Минимум</label><input name="minQty" type="number" inputmode="decimal" min="0" step="any" placeholder="Например, 1" value="${p.minQty!=null?E(p.minQty):''}" /></div><div><label>Целевой запас</label><input name="targetQty" type="number" inputmode="decimal" min="0" step="any" placeholder="Например, 3" value="${p.targetQty!=null?E(p.targetQty):''}" /></div><div><label>Место по умолчанию</label><select name="locationDefault">${locationOptions(p.locationDefault||'Кухонный шкаф')}</select></div><div><label>Предпочтительный магазин</label><select name="store">${pickOptions(['Магнит','ВкусВилл','Другой'],p.store||'',true)}</select></div><div class="span2"><label>Допустимые замены (необязательно)</label><input name="substitutes" placeholder="Например, другой бренд" value="${E(p.substitutes||'')}" /></div>${!edit?`<div><label>Сейчас дома</label><input name="initialQty" type="number" inputmode="decimal" min="0" step="any" value="0" /></div><div><label>Годен до</label><input name="expiry" type="date" /></div>`:''}</div><div class="spaced"><label>Штрихкод / GTIN (необязательно)</label><input name="barcode" inputmode="numeric" pattern="[0-9]{8,14}" placeholder="8–14 цифр" value="${E(p.barcode||'')}" /></div><p class="form-help">Для молока можно выбрать «уп.»: учитываем пакет целиком, даже если его уже открыли. Партию с другой датой добавляйте через «Пополнить».</p>${modalFoot(edit?'Сохранить':'Добавить товар')}</form>`;}
 
@@ -554,6 +606,21 @@ async function doAction(action,id){switch(action){
   toast('Отчёт сохранён. Пришлите его в чат для проверки ошибок распознавания.');
   break;
  }
+ case 'cloudConfig':cloudConfigDialog();break;
+ case 'cloudSync':{
+  if(!window.PantryCloud)throw Error('Модуль синхронизации не загрузился');
+  const result=await window.PantryCloud.synchronize({force:true});
+  await render();toast(cloudStatusText(result));break;
+ }
+ case 'cloudSeed':{
+  if(!confirm('Первый перенос в облако: создайте резервную копию JSON. Если облачная база пуста, содержимое этого устройства станет исходным. Продолжить?'))break;
+  const result=await window.PantryCloud.synchronize({force:true,initialize:true});
+  await render();toast(cloudStatusText(result));break;
+ }
+ case 'cloudDisconnect':{
+  if(!confirm('Отключить облако? Локальная база останется на этом устройстве.'))break;
+  window.PantryCloud.disconnect();await render();toast('Облако отключено, локальные данные сохранены');break;
+ }
  case 'backup':await backup();await render();break;
  case 'restore':{
    const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.style.display='none';document.body.append(input);
@@ -576,6 +643,10 @@ async function doAction(action,id){switch(action){
  }}
 async function doForm(form){const fd=new FormData(form),type=form.dataset.form,id=form.dataset.id;
  switch(type){
+ case 'cloudConfig':{
+  window.PantryCloud.saveConfig(fd.get('cloudUrl'),fd.get('cloudToken'));
+  closeModal();await render();toast('Подключение сохранено. Проверьте синхронизацию.');break;
+ }
  case 'product':{const p=await saveProduct(fd,id);closeModal();await render();toast(id?'Карточка изменена':`Добавлен товар: ${p.name}`);break;}
  case 'rename':{await renameProduct(id,fd.get('name'),fd.get('barcode'));closeModal();await render();toast('Название обновлено');break;}
  case 'batch':{const p=await get('products',id);await addBatch(p,fd.get('qty'),String(fd.get('expiry')||''),String(fd.get('location')||''));closeModal();await render();toast('Запас пополнен');break;}
@@ -663,7 +734,16 @@ function events(){
 }
 async function init(){try{
   if(!('indexedDB' in window))throw Error('Браузер не поддерживает IndexedDB. Используйте актуальный Chrome на Android.');
-  db=await openDb();events();await render();
+  db=await openDb();events();
+  if(window.PantryCloud){
+   window.PantryCloud.connect({take:snapshot,apply:applyCloudSnapshot,updated:render,idle:()=>!busy&&!$('#modal')?.open});
+  }
+  await render();
+  if(window.PantryCloud?.config()){
+   window.PantryCloud.synchronize().then(result=>{
+    if(['pulled','uploaded','conflict'].includes(result.status))toast(cloudStatusText(result));
+   }).catch(e=>console.warn('Облачная синхронизация:',e));
+  }
   if('serviceWorker' in navigator && ['https:','http:'].includes(location.protocol)){
     const alreadyControlled=Boolean(navigator.serviceWorker.controller);
     let reloading=false, updatePending=false, lastChecked=0;
