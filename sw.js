@@ -1,8 +1,8 @@
 /* Домашние запасы · обновляемые файлы online-first, офлайн-копия в cache. */
 const CACHE_PREFIX='domashnie-zapasy-shell-';
-const CACHE=CACHE_PREFIX+'v14';
+const CACHE=CACHE_PREFIX+'v15';
 const BASE=new URL('./',self.location.href);
-const ASSETS=['./','./index.html','./styles.css?v=20261103-10','./app.js?v=20261103-10','./receipt.js?v=20261103-10','./catalog.js?v=20261103-05','./scanner.js?v=20261103-05','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
+const ASSETS=['./','./index.html','./styles.css?v=20261103-10','./app.js?v=20261103-11','./receipt.js?v=20261103-10','./catalog.js?v=20261103-05','./scanner.js?v=20261103-05','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
