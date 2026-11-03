@@ -691,8 +691,6 @@ async function doForm(form){const fd=new FormData(form),type=form.dataset.form,i
 }
 function setPage(p,view='all'){page=p;stockView=p==='stock'?view:'all';stockQuery='';stockCategory='Все';render();window.scrollTo({top:0,behavior:'instant'});}
 function events(){
- document.addEventListener('click',async e=>{
-  const nav=e.target.closest('[data-page],[data-go]');if(nav){setPage(nav.dataset.page||nav.dataset.go,nav.dataset.stockView||'all');return;}
   document.addEventListener('change',async e=>{
   const pick=e.target.closest('[data-receipt-match]');
   if(!pick)return;
@@ -704,6 +702,9 @@ function events(){
   if(kind==='shopping'){const r=await get('shopping',key);if(r){unit.value=r.unit;if(r.productId){const p=await get('products',r.productId);if(loc&&p?.locationDefault)loc.value=p.locationDefault;}}}
   if(kind==='product'){const r=await get('products',key);if(r){unit.value=r.unit;if(loc&&r.locationDefault)loc.value=r.locationDefault;}}
  });
+ document.addEventListener('click',async e=>{
+  const nav=e.target.closest('[data-page],[data-go]');if(nav){setPage(nav.dataset.page||nav.dataset.go,nav.dataset.stockView||'all');return;}
+
  const category=e.target.closest('[data-category]');if(category){stockCategory=category.dataset.category;await render();return;}
   const renamePick=e.target.closest('[data-rename-choice]');
   if(renamePick){
