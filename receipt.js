@@ -1,4 +1,4 @@
-/* Домашние запасы: обработка чеков v0.7. Изображения распознаются на устройстве. */
+/* Домашние запасы: обработка чеков v0.9. OCR-модули размещены в самом приложении. */
 (()=>{'use strict';
 const norm=v=>String(v||'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[^a-zа-я0-9]+/gi,' ').replace(/\s+/g,' ').trim();
 const number=v=>Number(String(v||'').replace(/\s/g,'').replace(',','.'));
@@ -76,7 +76,7 @@ function hash(text){let h=2166136261;const input=norm(text).slice(0,200000);for(
 const scripts={};
 async function script(url,globalName){
  if(window[globalName])return window[globalName];
- if(!scripts[globalName])scripts[globalName]=new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=url;el.async=true;el.onload=()=>window[globalName]?resolve(window[globalName]):reject(Error('Библиотека не запустилась'));el.onerror=()=>reject(Error('Не удалось загрузить библиотеку (интернет или CDN).'));document.head.append(el);});
+ if(!scripts[globalName])scripts[globalName]=new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=url;el.async=true;el.onload=()=>window[globalName]?resolve(window[globalName]):reject(Error('Библиотека не запустилась'));el.onerror=()=>reject(Error('Не удалось загрузить локальный OCR-модуль приложения. Проверьте подключение к интернету и обновите приложение.'));document.head.append(el);});
  try{return await scripts[globalName];}catch(e){delete scripts[globalName];throw e;}
 }
 async function prepareOcrImage(image,status){
@@ -103,9 +103,15 @@ async function prepareOcrImage(image,status){
 }
 async function ocr(image,status){
  status('Загружаю модуль распознавания русского текста…');
- const t=await script('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','Tesseract');
+ const t=await script('./vendor/ocr/tesseract.min.js','Tesseract');
  let worker;
- try{worker=await t.createWorker('rus+eng',1,{logger:m=>{if(m.status==='recognizing text')status('Распознавание: '+Math.round(m.progress*100)+'%');}});const res=await worker.recognize(await prepareOcrImage(image,status));return String(res?.data?.text||'');}
+ try{worker=await t.createWorker('rus+eng',1,{
+  workerPath:new URL('./vendor/ocr/worker.min.js',location.href).href,
+  corePath:new URL('./vendor/ocr/core',location.href).href.replace(/\/$/,''),
+  langPath:new URL('./vendor/ocr/lang',location.href).href.replace(/\/$/,''),
+  workerBlobURL:false,
+  logger:m=>{if(m.status==='recognizing text')status('Распознавание: '+Math.round(m.progress*100)+'%');}
+ });const res=await worker.recognize(await prepareOcrImage(image,status));return String(res?.data?.text||'');}
  finally{if(worker)await worker.terminate().catch(()=>{});}
 }
 async function extract(file,status=()=>{}){
@@ -116,8 +122,8 @@ async function extract(file,status=()=>{}){
  if(/\.(txt|csv)$/.test(name)||type.startsWith('text/'))return {text:await file.text(),source:name};
  if(/\.pdf$/.test(name)||type.includes('pdf')){
   status('Читаю PDF…');
-  const pdf=await script('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','pdfjsLib');
-  pdf.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const pdf=await script('./vendor/ocr/pdf.min.js','pdfjsLib');
+  pdf.GlobalWorkerOptions.workerSrc=new URL('./vendor/ocr/pdf.worker.min.js',location.href).href;
   const doc=await pdf.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
   const texts=[];
   for(let i=1;i<=Math.min(doc.numPages,4);i++){
