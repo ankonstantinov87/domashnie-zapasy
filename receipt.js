@@ -79,11 +79,33 @@ async function script(url,globalName){
  if(!scripts[globalName])scripts[globalName]=new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=url;el.async=true;el.onload=()=>window[globalName]?resolve(window[globalName]):reject(Error('Библиотека не запустилась'));el.onerror=()=>reject(Error('Не удалось загрузить библиотеку (интернет или CDN).'));document.head.append(el);});
  try{return await scripts[globalName];}catch(e){delete scripts[globalName];throw e;}
 }
+async function prepareOcrImage(image,status){
+ if(typeof createImageBitmap!=='function')return image;
+ let bitmap;
+ try{
+  bitmap=await createImageBitmap(image);
+  const scale=Math.min(2.1,2300/bitmap.width,3200/bitmap.height);
+  const safeScale=Math.max(.6,scale);
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.round(bitmap.width*safeScale);
+  canvas.height=Math.round(bitmap.height*safeScale);
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return image;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.filter='grayscale(100%) contrast(150%)';
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  status('Увеличиваю и усиливаю контраст текста чека…');
+  return canvas;
+ }catch(error){return image;}
+ finally{if(bitmap?.close)bitmap.close();}
+}
 async function ocr(image,status){
  status('Загружаю модуль распознавания русского текста…');
  const t=await script('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','Tesseract');
  let worker;
- try{worker=await t.createWorker('rus+eng',1,{logger:m=>{if(m.status==='recognizing text')status('Распознавание: '+Math.round(m.progress*100)+'%');}});const res=await worker.recognize(image);return String(res?.data?.text||'');}
+ try{worker=await t.createWorker('rus+eng',1,{logger:m=>{if(m.status==='recognizing text')status('Распознавание: '+Math.round(m.progress*100)+'%');}});const res=await worker.recognize(await prepareOcrImage(image,status));return String(res?.data?.text||'');}
  finally{if(worker)await worker.terminate().catch(()=>{});}
 }
 async function extract(file,status=()=>{}){
