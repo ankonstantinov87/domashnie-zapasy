@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#23483a">
+<title>Обновление — Домашние запасы</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b3027;background:#f4f5f1}
+*{box-sizing:border-box}
+body{margin:0;padding:24px 16px}
+main{max-width:560px;margin:7vh auto 0;padding:25px;background:#fff;border-radius:18px;box-shadow:0 6px 22px #20302512}
+h1{margin:0 0 15px;font-size:27px}
+p{line-height:1.55}
+button{width:100%;margin-top:12px;font:700 17px system-ui;background:#23483a;color:#fff;border:0;border-radius:12px;padding:15px;min-height:52px}
+button:disabled{opacity:.6}
+small{display:block;color:#596e61;margin-top:18px;line-height:1.5}
+#status{border-radius:10px;background:#edf2ed;padding:12px;min-height:45px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<main>
+<h1>Обновление приложения</h1>
+<p>Эта страница удалит <strong>только старые файлы приложения из кеша</strong> и откроет новую версию «Домашних запасов».</p>
+<p><strong>Ваши товары, количества и сроки годности в локальной базе IndexedDB не удаляются.</strong> Перед обновлением завершите заполнение открытых форм.</p>
+<button id="repair" type="button">Обновить без удаления запасов</button>
+<p id="status" role="status">Готово к проверке обновления.</p>
+<small>Для работы нужен интернет. Эта операция не очищает данные сайта и не удаляет приложение с телефона. Резервные копии по-прежнему рекомендуется сохранять на Google Диске.</small>
+</main>
+<script>
+(() => {
+'use strict';
+const button=document.getElementById('repair'),status=document.getElementById('status');
+button.addEventListener('click',async()=>{
+  if(button.disabled)return;
+  button.disabled=true;
+  status.textContent='Проверяю доступность новой версии…';
+  try{
+    // Use a unique query to bypass any cache-first service worker still controlling the page.
+    const url=new URL('./app.js?version-check='+Date.now(),location.href);
+    const response=await fetch(url,{cache:'no-store'});
+    if(!response.ok)throw Error('Новая версия пока не доступна (HTTP '+response.status+').');
+    const source=await response.text();
+    if(!source.includes('home-pantry-family-v1'))throw Error('Получен неожиданный файл. Обновление остановлено.');
+    const version=source.match(/Версия\s+(\d+\.\d+)/);
+    status.textContent='Доступна версия '+(version?version[1]:'приложения')+'. Обновляю файлы…';
+
+    if('serviceWorker' in navigator){
+      const registrations=await navigator.serviceWorker.getRegistrations();
+      const expectedScope=new URL('./',location.href).href;
+      for(const registration of registrations){
+        if(registration.scope===expectedScope)await registration.unregister();
+      }
+    }
+    if('caches' in window){
+      const keys=await caches.keys();
+      for(const name of keys){
+        if(name.startsWith('domashnie-zapasy-shell-'))await caches.delete(name);
+      }
+    }
+    status.textContent='Кеш приложения обновлён. Открываю «Домашние запасы»…';
+    location.replace('./?updated='+Date.now());
+  }catch(error){
+    status.textContent='Не получилось обновить: '+(error?.message||String(error))+'. Проверьте интернет и повторите.';
+    button.disabled=false;
+  }
+});
+})();
+</script>
+</body>
+</html>
