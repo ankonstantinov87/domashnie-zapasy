@@ -87,7 +87,12 @@ function formProduct(p={}){const edit=Boolean(p.id);return `<h2>${edit?'Изме
 
 function formRename(p, suggested, codeValue){
  const title=suggested===undefined?p.name:suggested,barcode=codeValue===undefined?(p.barcode||''):codeValue;
- return '<h2>Исправить название</h2><p class="sub">Остатки и даты годности сохранятся.</p><form data-form="rename" data-id="'+E(p.id)+'"><label>Название товара *</label><input name="name" value="'+E(title)+'" maxlength="120" required autofocus /><input type="hidden" name="barcode" value="'+E(barcode)+'" /><div class="actions spaced"><button type="button" class="btn secondary full" data-act="scanCode" data-id="'+E(p.id)+'">▣ Найти название по штрихкоду</button></div>'+modalFoot('Сохранить название')+'</form>';
+ const inferred=window.PantryCatalog?.parseMessage(p.name)?.[0]?.name||p.name;
+ const suggestions=window.PantryCatalog?.suggest(inferred)||[];
+ const chips=suggestions.filter(x=>x!==title).map(x=>'<button class="suggestion-chip" data-rename-choice="'+E(x)+'" type="button">'+E(x)+'</button>').join('');
+ return '<h2>Исправить название</h2><p class="sub">Остатки и даты годности сохранятся.</p><form data-form="rename" data-id="'+E(p.id)+'"><label>Название товара *</label><input name="name" value="'+E(title)+'" maxlength="120" required autofocus />'+
+ (chips?'<div class="suggestion-section"><div class="meta">Возможные названия из каталога:</div><div class="suggestion-chips">'+chips+'</div></div>':'')+
+ '<input type="hidden" name="barcode" value="'+E(barcode)+'" /><div class="actions spaced"><button type="button" class="btn secondary full" data-act="scanCode" data-id="'+E(p.id)+'">▣ Найти название по штрихкоду</button></div>'+modalFoot('Сохранить название')+'</form>';
 }
 async function renameProduct(id,name,barcode){
  const p=await get('products',id);if(!p)throw Error('Товар не найден');
@@ -427,6 +432,13 @@ function events(){
  document.addEventListener('click',async e=>{
   const nav=e.target.closest('[data-page],[data-go]');if(nav){setPage(nav.dataset.page||nav.dataset.go);return;}
   const category=e.target.closest('[data-category]');if(category){stockCategory=category.dataset.category;await render();return;}
+  const renamePick=e.target.closest('[data-rename-choice]');
+  if(renamePick){
+   e.preventDefault();
+   const input=renamePick.closest('form')?.querySelector('input[name="name"]');
+   if(input){input.value=renamePick.dataset.renameChoice;renamePick.closest('form').querySelectorAll('[data-rename-choice]').forEach(x=>x.classList.toggle('selected',x===renamePick));}
+   return;
+  }
   const pick=e.target.closest('[data-pick-row]');
   if(pick){
    e.preventDefault();
