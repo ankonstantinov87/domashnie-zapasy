@@ -25,3 +25,8 @@
 .candidate .form-grid.spaced{margin-top:12px}
 .candidate .check{width:23px;height:23px;margin-top:11px}
 .candidate textarea{font-size:14px;min-height:54px;padding:8px 10px}
+
+/* v0.5: clickable home stock summary */
+.kpi-link{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.kpi-link:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.kpi-link:active{background:var(--accent2)}
