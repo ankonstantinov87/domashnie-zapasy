@@ -376,7 +376,7 @@ async function prepareReceipt(formData){
  receiptDraft={rows:entries,source:parsed.source,raw:parsed.text,hash:window.PantryReceipt.hash(parsed.text||JSON.stringify(parsed.data))};
  const cards=entries.map((entry,i)=>{
   const suggestions=window.PantryReceipt.candidates(entry.name,snap.shopping,snap.products);
-  const top=suggestions[0],defaultMatch=top&&top.score>=90?top.value:'new';
+  const top=suggestions[0],defaultMatch=top&&top.score>=90&&top.unit===entry.unit?top.value:'new';
   const selected=suggestions.find(x=>x.value===defaultMatch);
   const unit=selected?.unit||entry.unit||'уп.';
   const matchedShopping=selected?.value?.startsWith('shopping:')?snap.shopping.find(x=>x.id===selected.value.slice(9)):null;
@@ -387,6 +387,7 @@ async function prepareReceipt(formData){
   const shown=new Set(suggestions.map(x=>x.value));
   for(const x of snap.shopping.filter(x=>x.status==='open'))if(!shown.has('shopping:'+x.id))
    options.push('<option value="shopping:'+E(x.id)+'">'+E(x.name)+' — другая позиция из закупки</option>');
+  const unitMismatch=top&&top.score>=70&&top.unit!==entry.unit;
   const flags=entry.flags?.length?entry.flags.join('; '):'';
   const checked=entry.confidence>=.73?'checked':'';
   return '<div class="candidate receipt-item" data-receipt-row="'+i+'">'+
@@ -402,6 +403,7 @@ async function prepareReceipt(formData){
   '</div><details class="receipt-details"><summary>Срок годности и место хранения (необязательно)</summary>'+
   '<label>Годен до</label><input type="date" name="receiptExpiry_'+i+'" />'+
   '<label>Место хранения</label><select name="receiptLocation_'+i+'">'+locationOptions(defaultLocation)+'</select></details>'+
+  (unitMismatch?'<div class="form-help receipt-warning">Чек: '+E(entry.unit)+', похожий товар в закупке: '+E(top.unit)+'. Автоматического перевода нет. Чтобы зачесть покупку, выберите товар и вручную укажите количество в единицах каталога.</div>':'')+
   (flags?'<div class="form-help receipt-warning">'+E(flags)+' — проверьте перед добавлением</div>':'')+
   '</div>';
  }).join('');
