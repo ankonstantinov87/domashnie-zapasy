@@ -5,43 +5,52 @@ const number=v=>Number(String(v||'').replace(/\s/g,'').replace(',','.'));
 const ignore=/^(?:итого|всего|оплата|наличными|наличные|безнал|безналичными|сдача|ндс|кассовый чек|чек\s*[№#]|магазин|кассир|касса|приход|адрес|продавец|дата|время|телефон|тел\.|почта|email|инн\b|фн\b|фд\b|фп\b|ккт\b|смена|сно\b|сайт|www\.|https?:|добро пожаловать|спасибо|скидка по чеку|бонус|налог|признак|qr|электронный чек|торговый объект)/i;
 function parseText(text){
  const raw=String(text||'').replace(/\r/g,'\n').replace(/\u00a0/g,' ');
- if(/^\s*t=\d{8}T\d{4}&s=.+&fn=/i.test(raw.trim()))throw Error('QR содержит реквизиты чека, но не позиции. Загрузите полный чек.');
- const lines=raw.split('\n').map(s=>s.replace(/^\s*\d{1,3}[.)]\s+/,'').replace(/\s+/g,' ').trim()).filter(Boolean);
- const result=[];let finished=false;
+ if(/^\s*t=\d{8}T\d{4}&s=.+&fn=/i.test(raw.trim()))throw Error('QR содержит реквизиты, а не список товаров. Нужен полный чек.');
+ const lines=raw.split('\n').map(s=>s.trim().replace(/^\d{1,3}[.)]\s+/,'').replace(/\s+/g,' ')).filter(Boolean);
+ const rows=[];let finished=false;
+ const stop=/^(?:итого(?:\s|$)|товаров\s+на\s+сумму(?:\s|$)|всего\s+к\s+оплате(?:\s|$)|ваш\s+кешбэк(?:\s|$)|оплачено\s+бонусами(?:\s|$))/i;
+ const ignoreHeader=/^(?:о покупке|написать в поддержку|оценить магазин|корзина|доставка|покупка на|кассовый чек|кассир|касса|приход|адрес|продавец|дата|время|телефон|почта|email|инн|фн|фд|фп|ккт|сайт|www\.|https?:|добро пожаловать|спасибо|скидка|сдача|бонус|налог|QR|электронный чек|\d+\s+товара?\s+на\s+сумму|магнит$|вкусвилл$|пятерочка$|пятёрочка$|лента$|дикси$)/i;
+ const company=/(?:^|\s)(?:ООО|АО|ПАО|ОАО)(?:$|\s)/i;
+ const measure=u=>/кг/i.test(u)?'кг':/^г/i.test(u)?'г':/шт/i.test(u)?'шт.':'уп.';
+ const prior=()=>rows.length?rows[rows.length-1]:null;
+ const grade=r=>{r.confidence=r.qtyKnown&&r.price!==null?.94:r.qtyKnown?.86:r.price!==null?.78:.43;r.flags=r.qtyKnown?[]:['Количество предположено: 1'];};
+ const moneyPrice=/^(\d{1,7}[.,]\d{2})(?:\s*(?:₽|[рР]\.?|руб\.?))?$|^(\d{1,7})\s*(?:₽|[рР]\.?|руб\.?)$/i;
+ const pricedQty=/^(\d{1,7}(?:[.,]\d{2})?)\s*(?:₽|[рР]\.?|руб\.?)?\s+(\d{1,6}(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?|уп\.?)$/i;
+ const qtyPrice=/^(\d{1,6}(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?|уп\.?)\s+(\d{1,7}(?:[.,]\d{2})?)\s*(?:₽|[рР]\.?)?$/i;
+ const qtyLine=/^(\d{1,6}(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?|уп\.?|пак\.?|бан\.?)(?:\s+по\s+\d{1,7}[.,]\d{2}\s*(?:₽|[рР]\.?)?\s*\/\s*(?:кг|шт\.?))?$/i;
  for(let line of lines){
-  if(/^(?:итого|всего к оплате|к оплате|сумма чека|итог чека)\b/i.test(line)){finished=true;continue;}
-  const splitQty=line.match(/^(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)?\s*[xх×*]\s*(\d{1,7}[.,]\d{2})(?:\s+(\d{1,7}[.,]\d{2}))?$/i);
-  if(splitQty&&result.length&&result[result.length-1].confidence<.6){
-   const prior=result[result.length-1];
-   prior.qty=number(splitQty[1]);prior.unit=/кг/i.test(splitQty[2]||'')?'кг':/^г/i.test(splitQty[2]||'')?'г':'шт.';
-   prior.price=number(splitQty[4]||splitQty[3]);prior.confidence=.87;prior.flags=[];
-   continue;
+  if(stop.test(line)){finished=true;continue;}
+  if(finished||ignoreHeader.test(line)||ignore.test(line)||company.test(line))continue;
+  if(/^\d{2}[.\/-]\d{2}[.\/-]\d{2,4}(?:\s*[\/|]\s*\d{1,2}:\d{2})?$/.test(line)||/^[-=_*•.\s]{3,}$/.test(line))continue;
+  const prev=prior();
+  const pq=line.match(pricedQty),qp=line.match(qtyPrice);
+  if(prev&&(pq||qp)){
+   const match=pq||qp;prev.price=number(pq?match[1]:match[3]);prev.qty=number(pq?match[2]:match[1]);
+   prev.unit=measure(pq?match[3]:match[2]);prev.qtyKnown=true;grade(prev);continue;
   }
-  if(/^\d+[.,]\d{2}$/.test(line)&&result.length&&result[result.length-1].confidence<.6){
-   const prior=result[result.length-1];
-   prior.price=number(line);prior.confidence=.76;prior.flags=['Количество предположено: 1'];
-   continue;
-  }
-  if(finished||ignore.test(line)||/^(?:\d{12,14}|\d{1,4}:\d{2}|\d+[.,]\d{2}\s*(?:руб|₽)?|[-_*=.\s]+)$/i.test(line))continue;
-  if(/^(?:магнит|вкусвилл|пятерочка|пятёрочка|перекресток|перекрёсток|лента|дикси|ашан)$/i.test(line))continue;
-  const original=line;
-  let qty=1,unit='уп.',price=null,confidence=.4,flags=['Проверьте количество'];
-  const mult=line.match(/(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)?\s*[xх×*]\s*(\d{1,7}[.,]\d{2})(?:\s*(?:=)?\s*(\d{1,7}[.,]\d{2}))?/i);
-  if(mult){qty=number(mult[1]);unit=mult[2]?(/кг/i.test(mult[2])?'кг':/^г/i.test(mult[2])?'г':'шт.'):'шт.';price=number(mult[4]||mult[3]);confidence=.9;flags=[];line=line.replace(mult[0],' ').trim();}
+  const q=line.match(qtyLine);
+  if(prev&&q){prev.qty=number(q[1]);prev.unit=measure(q[2]);prev.qtyKnown=true;grade(prev);continue;}
+  const p=line.match(moneyPrice);
+  if(p){if(prev&&prev.price===null){prev.price=number(p[1]||p[2]);grade(prev);}continue;}
+  if(/^(?:\d{12,14}|\d{1,4}:\d{2})$/.test(line))continue;
+  let name=line,qty=1,unit='уп.',price=null,qtyKnown=false;
+  const inline=line.match(/(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)?\s*[xх×*]\s*(\d{1,7}[.,]\d{2})(?:\s*(?:=)?\s*(\d{1,7}[.,]\d{2}))?\s*(?:₽|[рР]\.?)?$/i);
+  if(inline){qty=number(inline[1]);unit=inline[2]?measure(inline[2]):'шт.';price=number(inline[4]||inline[3]);qtyKnown=true;name=line.slice(0,inline.index).trim();}
   else{
-   const units=line.match(/(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?|уп\.?|пак\.?|бан\.?)(?=\s|$)/i);
-   if(units){qty=number(units[1]);unit=/кг/.test(units[2])?'кг':/^г/.test(units[2])?'г':/шт/.test(units[2])?'шт.':'уп.';line=line.replace(units[0],' ').trim();confidence=.75;flags=[];}
+   const packed=line.match(/\s+(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)\s+(\d{1,7}[.,]\d{2})\s*(?:₽|[рР]\.?)?$/i);
+   if(packed){qty=number(packed[1]);unit=measure(packed[2]);price=number(packed[3]);qtyKnown=true;name=line.slice(0,packed.index).trim();}
   }
-  const money=line.match(/(?:^|\s)(\d{1,7}[.,]\d{2})\s*(?:₽|р\.?|руб\.?)?\s*$/i);
-  if(money){if(price===null)price=number(money[1]);line=line.slice(0,money.index).trim();if(confidence<.76){confidence=.76;if(qty===1&&flags.length)flags=['Количество предположено: 1'];}}
-  line=line.replace(/^[^a-zа-яё]+/i,'').replace(/[-_,.;:=\s]+$/,'').trim();
-  if(line.length<3||line.length>120||!/[а-яёa-z]{2}/i.test(line)||ignore.test(line))continue;
-  if(/фискальн|эквайрин|терминал|признак расчета|банк\.|оператор фд|офд/i.test(line))continue;
+  name=name.replace(/^[^\p{L}]+/u,'').replace(/[,;.:—\-\s]+$/,'').trim();
+  if(name.length<3||name.length>145||!/[а-яёa-z]{2}/i.test(name))continue;
+  if(/(?:фискальн|эквайрин|терминал|признак расчета|банковск|оператор фд|офд)/i.test(name))continue;
+  const continuation=/^(?:бондюэль|bonduelle|комфорт(?:\s|$)|ультра(?:\s|$))/i.test(name)||
+    (/^[а-яё]/u.test(name)&&name.length<=42&&/\d{2,4}\s*(?:г|шт)(?:\s|$)/i.test(name)&&/(?:Huggies|Ultra|Бондюэль)/i.test(prev?.name||''));
+  if(prev&&!prev.qtyKnown&&prev.price===null&&continuation){prev.name+=' '+name;prev.raw+='\n'+line;continue;}
   if(!Number.isFinite(qty)||qty<=0)continue;
-  result.push({name:line,raw:original,qty,unit,price,confidence,flags});
-  if(result.length>=100)break;
+  const row={name,raw:line,qty,unit,price,qtyKnown,flags:[],confidence:.43};grade(row);rows.push(row);
+  if(rows.length>=100)break;
  }
- return result;
+ return rows.map(({qtyKnown,...item})=>item);
 }
 function parseJson(value){
  const doc=value?.ticket?.document?.receipt||value?.document?.receipt||value?.receipt||value;
