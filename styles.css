@@ -15,3 +15,13 @@
 /* v0.3: update notice when unsaved changes may exist */
 .update-prompt{position:fixed;z-index:40;top:calc(9px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(580px,calc(100% - 24px));background:#fff;border:1px solid #c9d8cd;border-radius:13px;box-shadow:0 8px 35px #0003;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:650}
 .update-prompt button{flex-shrink:0}
+
+
+/* v0.4 — review suggestions after shopping list import */
+.suggestion-section{margin:8px 0 12px}
+.suggestion-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.suggestion-chip{border:1px solid #bfcfbe;background:white;color:var(--accent);border-radius:9px;padding:7px 10px;min-height:34px;font-size:12px;font-weight:650;max-width:100%;text-align:left;overflow-wrap:anywhere}
+.suggestion-chip.selected{background:var(--accent2);border-color:var(--accent)}
+.candidate .form-grid.spaced{margin-top:12px}
+.candidate .check{width:23px;height:23px;margin-top:11px}
+.candidate textarea{font-size:14px;min-height:54px;padding:8px 10px}
