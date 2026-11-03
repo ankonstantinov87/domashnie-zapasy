@@ -11,6 +11,7 @@ function parseText(text){
  for(let line of lines){
   if(/^(?:итого|всего к оплате|к оплате|сумма чека|итог чека)\b/i.test(line)){finished=true;continue;}
   if(finished||ignore.test(line)||/^(?:\d{12,14}|\d{1,4}:\d{2}|\d+[.,]\d{2}\s*(?:руб|₽)?|[-_*=.\s]+)$/i.test(line))continue;
+  if(/^(?:магнит|вкусвилл|пятерочка|пятёрочка|перекресток|перекрёсток|лента|дикси|ашан)$/i.test(line))continue;
   const original=line;
   let qty=1,unit='уп.',price=null,confidence=.4,flags=['Проверьте количество'];
   const mult=line.match(/(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)?\s*[xх×*]\s*(\d{1,7}[.,]\d{2})(?:\s*(?:=)?\s*(\d{1,7}[.,]\d{2}))?/i);
@@ -20,7 +21,7 @@ function parseText(text){
    if(units){qty=number(units[1]);unit=/кг/.test(units[2])?'кг':/^г/.test(units[2])?'г':/шт/.test(units[2])?'шт.':'уп.';line=line.replace(units[0],' ').trim();confidence=.75;flags=[];}
   }
   const money=line.match(/(?:^|\s)(\d{1,7}[.,]\d{2})\s*(?:₽|р\.?|руб\.?)?\s*$/i);
-  if(money){if(price===null)price=number(money[1]);line=line.slice(0,money.index).trim();if(confidence<.76){confidence=.76;flags=['Количество предположено: 1'];}}
+  if(money){if(price===null)price=number(money[1]);line=line.slice(0,money.index).trim();if(confidence<.76){confidence=.76;if(qty===1&&flags.length)flags=['Количество предположено: 1'];}}
   line=line.replace(/^[^a-zа-яё]+/i,'').replace(/[-_,.;:=\s]+$/,'').trim();
   if(line.length<3||line.length>120||!/[а-яёa-z]{2}/i.test(line)||ignore.test(line))continue;
   if(/фискальн|эквайрин|терминал|признак расчета|банк\.|оператор фд|офд/i.test(line))continue;
