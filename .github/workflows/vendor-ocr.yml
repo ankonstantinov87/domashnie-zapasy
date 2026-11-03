@@ -1,0 +1,54 @@
+name: Bundle receipt OCR assets
+on:
+  push:
+    paths:
+      - '.github/workflows/vendor-ocr.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Download pinned OCR libraries and language data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pantry-ocr-deps vendor/ocr/{core,lang}
+          cd /tmp/pantry-ocr-deps
+          npm install --ignore-scripts --no-audit --no-fund --no-save tesseract.js@5.1.1 pdfjs-dist@3.11.174
+          cd "$GITHUB_WORKSPACE"
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js/dist/tesseract.min.js vendor/ocr/tesseract.min.js
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js/dist/worker.min.js vendor/ocr/worker.min.js
+          cp /tmp/pantry-ocr-deps/node_modules/pdfjs-dist/build/pdf.min.js vendor/ocr/pdf.min.js
+          cp /tmp/pantry-ocr-deps/node_modules/pdfjs-dist/build/pdf.worker.min.js vendor/ocr/pdf.worker.min.js
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js/LICENSE.md vendor/ocr/TESSERACT-LICENSE.md || cp /tmp/pantry-ocr-deps/node_modules/tesseract.js/LICENSE vendor/ocr/TESSERACT-LICENSE
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js-core/LICENSE vendor/ocr/CORE-LICENSE
+          cp /tmp/pantry-ocr-deps/node_modules/pdfjs-dist/LICENSE vendor/ocr/PDF-LICENSE
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js-core/tesseract-core*.wasm.js vendor/ocr/core/
+          cp /tmp/pantry-ocr-deps/node_modules/tesseract.js-core/tesseract-core*.wasm vendor/ocr/core/
+          for lang in rus eng; do
+            curl -fLSs --retry 4 --retry-delay 3 "https://tessdata.projectnaptha.com/4.0.0/${lang}.traineddata.gz" -o "vendor/ocr/lang/${lang}.traineddata.gz"
+          done
+          test -s vendor/ocr/tesseract.min.js
+          test -s vendor/ocr/worker.min.js
+          test -s vendor/ocr/lang/rus.traineddata.gz
+          test -s vendor/ocr/lang/eng.traineddata.gz
+          test -s vendor/ocr/core/tesseract-core-simd-lstm.wasm.js
+          test -s vendor/ocr/core/tesseract-core-simd-lstm.wasm
+      - name: Commit bundled OCR files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/ocr
+          if ! git diff --cached --quiet; then
+            git commit -m "Bundle offline receipt OCR engines and languages"
+            git push
+          fi
