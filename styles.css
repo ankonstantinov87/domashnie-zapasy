@@ -37,3 +37,13 @@
 .stock-filter-item .stockrow{border-bottom:0}
 .stock-filter-detail{padding:0 8px 12px 54px;font-size:12px;color:var(--muted);line-height:1.55}
 .stock-filter-line{margin:3px 0}
+
+
+/* v0.7 - receipt review */
+.receipt-item{margin-bottom:12px}
+.receipt-item .meta{overflow-wrap:anywhere}
+.receipt-warning{background:var(--warn-bg);padding:8px 10px;border-radius:9px;color:#855219}
+.receipt-details{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding:10px 0;margin-top:7px}
+.receipt-details summary{cursor:pointer;font-weight:650;color:var(--accent)}
+.receipt-details input,.receipt-details select{margin-top:6px}
+.receipt-item input.check{width:24px;height:24px;margin-top:9px}
