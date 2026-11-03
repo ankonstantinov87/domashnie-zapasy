@@ -50,5 +50,7 @@ jobs:
           git add vendor/ocr
           if ! git diff --cached --quiet; then
             git commit -m "Bundle offline receipt OCR engines and languages"
+            git fetch origin main
+            git rebase origin/main
             git push
           fi
