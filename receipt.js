@@ -10,6 +10,18 @@ function parseText(text){
  const result=[];let finished=false;
  for(let line of lines){
   if(/^(?:итого|всего к оплате|к оплате|сумма чека|итог чека)\b/i.test(line)){finished=true;continue;}
+  const splitQty=line.match(/^(\d+(?:[.,]\d{1,3})?)\s*(кг|г|шт\.?)?\s*[xх×*]\s*(\d{1,7}[.,]\d{2})(?:\s+(\d{1,7}[.,]\d{2}))?$/i);
+  if(splitQty&&result.length&&result[result.length-1].confidence<.6){
+   const prior=result[result.length-1];
+   prior.qty=number(splitQty[1]);prior.unit=/кг/i.test(splitQty[2]||'')?'кг':/^г/i.test(splitQty[2]||'')?'г':'шт.';
+   prior.price=number(splitQty[4]||splitQty[3]);prior.confidence=.87;prior.flags=[];
+   continue;
+  }
+  if(/^\d+[.,]\d{2}$/.test(line)&&result.length&&result[result.length-1].confidence<.6){
+   const prior=result[result.length-1];
+   prior.price=number(line);prior.confidence=.76;prior.flags=['Количество предположено: 1'];
+   continue;
+  }
   if(finished||ignore.test(line)||/^(?:\d{12,14}|\d{1,4}:\d{2}|\d+[.,]\d{2}\s*(?:руб|₽)?|[-_*=.\s]+)$/i.test(line))continue;
   if(/^(?:магнит|вкусвилл|пятерочка|пятёрочка|перекресток|перекрёсток|лента|дикси|ашан)$/i.test(line))continue;
   const original=line;
