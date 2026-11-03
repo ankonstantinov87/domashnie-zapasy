@@ -379,6 +379,9 @@ async function prepareReceipt(formData){
   const top=suggestions[0],defaultMatch=top&&top.score>=90?top.value:'new';
   const selected=suggestions.find(x=>x.value===defaultMatch);
   const unit=selected?.unit||entry.unit||'уп.';
+  const matchedShopping=selected?.value?.startsWith('shopping:')?snap.shopping.find(x=>x.id===selected.value.slice(9)):null;
+  const matchedProduct=selected?.value?.startsWith('product:')?snap.products.find(x=>x.id===selected.value.slice(8)):matchedShopping?.productId?snap.products.find(x=>x.id===matchedShopping.productId):null;
+  const defaultLocation=matchedProduct?.locationDefault||'Кухонный шкаф';
   const options=['<option value="new">Новый товар / не связывать со списком</option>'];
   for(const x of suggestions)options.push('<option value="'+E(x.value)+'" '+(x.value===defaultMatch?'selected':'')+'>'+E(x.name)+' — '+(x.value.startsWith('shopping:')?'из закупки':'из запасов')+'</option>');
   const shown=new Set(suggestions.map(x=>x.value));
@@ -388,22 +391,22 @@ async function prepareReceipt(formData){
   const checked=entry.confidence>=.73?'checked':'';
   return '<div class="candidate receipt-item" data-receipt-row="'+i+'">'+
   '<div class="meta"><strong>Чек:</strong> '+E(entry.raw||entry.name)+'</div>'+
-  '<label>Что куплено</label><input maxlength="120" name="receiptName_'+i+'" value="'+E(entry.name)+'" required />'+
+  '<label>Что куплено</label><input maxlength="120" name="receiptName_'+i+'" value="'+E(entry.name)+'" />'+
   '<label class="spaced">Связать с запланированной покупкой</label>'+
   '<select data-receipt-match="'+i+'" name="receiptMatch_'+i+'">'+options.join('')+'</select>'+
   '<div class="form-grid spaced">'+
-  '<div><label>Количество</label><input name="receiptQty_'+i+'" type="number" min="0.001" step="any" inputmode="decimal" value="'+E(entry.qty||1)+'" required /></div>'+
+  '<div><label>Количество</label><input name="receiptQty_'+i+'" type="number" min="0.001" step="any" inputmode="decimal" value="'+E(entry.qty||1)+'" /></div>'+
   '<div><label>Единица</label><select data-receipt-unit="'+i+'" name="receiptUnit_'+i+'">'+pickOptions(UNITS,unit)+'</select></div>'+
   '<div><label>Сумма за позицию, ₽</label><input name="receiptAmount_'+i+'" type="number" min="0" step=".01" inputmode="decimal" value="'+E(entry.price??'')+'" /></div>'+
   '<div><label>Добавить в запасы</label><input class="check" name="receiptInclude_'+i+'" type="checkbox" '+checked+' /></div>'+
   '</div><details class="receipt-details"><summary>Срок годности и место хранения (необязательно)</summary>'+
   '<label>Годен до</label><input type="date" name="receiptExpiry_'+i+'" />'+
-  '<label>Место хранения</label><select name="receiptLocation_'+i+'">'+locationOptions('Кухонный шкаф')+'</select></details>'+
+  '<label>Место хранения</label><select name="receiptLocation_'+i+'">'+locationOptions(defaultLocation)+'</select></details>'+
   (flags?'<div class="form-help receipt-warning">'+E(flags)+' — проверьте перед добавлением</div>':'')+
   '</div>';
  }).join('');
  const notice='<div class="notice spaced">**Важно:** отметьте только действительно распознанные покупки. Нажатие «Подтвердить» увеличит домашние запасы и уменьшит соответствующие позиции в закупке. Остальные позиции останутся в списке.</div>';
- showModal('<h2>Проверка чека · '+entries.length+' поз.</h2>'+
+ closeModal();showModal('<h2>Проверка чека · '+entries.length+' поз.</h2>'+
  '<p class="sub">Сопоставление — предложение, не автоматическое решение. Проверьте количество, название и единицу. Если товара нет в списке покупок, можно внести его как новый.</p>'+
  '<form data-form="receiptReview">'+cards+notice+modalFoot('Подтвердить покупки')+'</form>');
 }
@@ -612,8 +615,9 @@ function events(){
   const unit=card?.querySelector('[data-receipt-unit]');
   if(!unit)return;
   const [kind,key]=selected.split(':');
-  if(kind==='shopping'){const r=await get('shopping',key);if(r)unit.value=r.unit;}
-  if(kind==='product'){const r=await get('products',key);if(r)unit.value=r.unit;}
+  const loc=card.querySelector('[name="receiptLocation_'+rowNumber+'"]');
+  if(kind==='shopping'){const r=await get('shopping',key);if(r){unit.value=r.unit;if(r.productId){const p=await get('products',r.productId);if(loc&&p?.locationDefault)loc.value=p.locationDefault;}}}
+  if(kind==='product'){const r=await get('products',key);if(r){unit.value=r.unit;if(loc&&r.locationDefault)loc.value=r.locationDefault;}}
  });
  const category=e.target.closest('[data-category]');if(category){stockCategory=category.dataset.category;await render();return;}
   const renamePick=e.target.closest('[data-rename-choice]');
