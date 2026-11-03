@@ -324,7 +324,7 @@ function modalImportReview(entries,source){
  '<div class="meta"><strong>Из сообщения:</strong> '+E(row.raw||row.name)+'</div>'+
  '<label>Название товара *</label><input name="name_'+i+'" value="'+E(row.name)+'" maxlength="120" required />'+
  (row.suggestions?.length?'<div class="suggestion-section"><div class="meta">Варианты из каталога — нажмите, чтобы выбрать:</div><div class="suggestion-chips">'+
- row.suggestions.filter(v=>normName(v)!==normName(row.name)).map(v=>'<button class="suggestion-chip" type="button" data-pick-row="'+i+'" data-choice="'+E(v)+'">'+E(v)+'</button>').join('')+
+ row.suggestions.filter(v=>v!==row.name).map(v=>'<button class="suggestion-chip" type="button" data-pick-row="'+i+'" data-choice="'+E(v)+'">'+E(v)+'</button>').join('')+
  '<button class="suggestion-chip selected" type="button" data-pick-row="'+i+'" data-choice="'+E(row.name)+'">Оставить как есть</button></div></div>':'')+
  '<div class="form-grid spaced">'+
  '<div><label>Количество *</label><input type="number" inputmode="decimal" min="0.001" step="any" name="qty_'+i+'" value="'+E(row.qty??1)+'" required />'+(row.missingQty?'<div class="form-help">В сообщении не указано — предложена 1 ед.</div>':'')+'</div>'+
