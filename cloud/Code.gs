@@ -105,8 +105,9 @@ function pantryWrite(ss,data){
    if(key==='_json')return JSON.stringify(record);
    const value=record[key];
    if(value===undefined||value===null)return '';
-   if(typeof value==='object')return JSON.stringify(value);
-   return typeof value==='boolean'?String(value):value;
+   const clean=typeof value==='object'?JSON.stringify(value):typeof value==='boolean'?String(value):value;
+   // Keep user-provided text as text, not executable Sheets formulas.
+   return typeof clean==='string'&&/^[=+@-]/.test(clean)?"'"+clean:clean;
   }));
   const toClear=sh.getLastRow()-1;
   if(toClear>0)sh.getRange(2,1,toClear,headers.length).clearContent();
