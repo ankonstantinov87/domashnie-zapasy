@@ -587,8 +587,12 @@ async function doForm(form){const fd=new FormData(form),type=form.dataset.form,i
   if(!result)break;
   closeModal();await render();
   const remaining=result.remaining;
-  const message='Внесено покупок: '+result.purchased.length+'.'+(remaining.length?' В закупке осталось: '+remaining.length+' поз.':' Все запланированные позиции закрыты.');
-  toast(message);
+  const boughtHtml=result.purchased.map(x=>'<div class="row"><div class="grow">'+E(x.name)+'</div><strong>'+amountText(x.qty,E(x.unit))+'</strong></div>').join('');
+  const leftHtml=remaining.map(x=>'<div class="row"><div class="grow">'+E(x.name)+'</div><strong>'+amountText(x.qty,E(x.unit))+'</strong></div>').join('');
+  showModal('<h2>Чек сверён</h2><p class="sub">Купленные товары добавлены в домашние запасы. Не купленные позиции остаются в закупке.</p>'+
+   '<h3>Куплено по чеку: '+result.purchased.length+'</h3><div class="card">'+boughtHtml+'</div>'+
+   '<h3 class="spaced">Осталось купить: '+remaining.length+'</h3>'+(remaining.length?'<div class="card">'+leftHtml+'</div>':'<p class="notice">Список покупок пуст.</p>')+
+   '<button type="button" class="btn primary full spaced" data-act="close">Готово</button>');
   break;
  }
  case 'importInput':{
