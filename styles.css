@@ -47,3 +47,8 @@
 .receipt-details summary{cursor:pointer;font-weight:650;color:var(--accent)}
 .receipt-details input,.receipt-details select{margin-top:6px}
 .receipt-item input.check{width:24px;height:24px;margin-top:9px}
+
+/* v0.8 — receipt OCR debugging */
+.receipt-debug{margin:18px 0 8px;padding:12px;background:var(--accent2);border-radius:12px}
+.receipt-debug summary{font-size:13px;font-weight:700;cursor:pointer;color:var(--accent)}
+.receipt-debug textarea{margin-top:9px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;min-height:120px;max-height:260px;white-space:pre;overflow:auto}
