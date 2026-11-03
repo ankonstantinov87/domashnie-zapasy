@@ -30,3 +30,10 @@
 .kpi-link{display:block;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .kpi-link:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .kpi-link:active{background:var(--accent2)}
+
+
+/* v0.6 — filtered stock lists opened by home summary cards */
+.stock-filter-item+.stock-filter-item{border-top:1px solid var(--line)}
+.stock-filter-item .stockrow{border-bottom:0}
+.stock-filter-detail{padding:0 8px 12px 54px;font-size:12px;color:var(--muted);line-height:1.55}
+.stock-filter-line{margin:3px 0}
