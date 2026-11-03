@@ -92,6 +92,9 @@ async function synchronize(options={}){
     if(hasLocalData(data)&&!options.initialize){
      return {status:'initial-local',message:'В этом браузере есть запасы. Для первого переноса нажмите «Отправить локальную базу».'};
     }
+    if(hasLocalData(data)&&options.initialize){
+     stateWrite({...local,rev:0,dirty:true,conflict:false});
+    }
     if(!hasLocalData(data)){stateWrite({...local,rev:0,dirty:false,conflict:false});return {status:'empty'};}
    }else{
     if(hasLocalData(data))return {status:'initial-conflict',message:'На устройстве и в облаке есть разные данные. Сначала создайте JSON-копию и разберите конфликт.'};
