@@ -10,3 +10,8 @@
 .barcode-panel .barcode-status{font-size:13px;min-height:36px;color:var(--muted);line-height:1.4}
 .barcode-panel .actions{margin-top:12px}
 .barcode-panel .actions .btn{flex:1}
+
+
+/* v0.3: update notice when unsaved changes may exist */
+.update-prompt{position:fixed;z-index:40;top:calc(9px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(580px,calc(100% - 24px));background:#fff;border:1px solid #c9d8cd;border-radius:13px;box-shadow:0 8px 35px #0003;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:650}
+.update-prompt button{flex-shrink:0}
