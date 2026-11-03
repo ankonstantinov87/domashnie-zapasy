@@ -31,7 +31,7 @@ function disconnect(){
 }
 function markDirty(){
  if(applying)return;
- const s=state();s.dirty=true;s.changes=(Number(s.changes)||0)+1;stateWrite(s);
+ const s=state();s.dirty=true;s.changes=(Number(s.changes)||0)+1;if(s.pendingOp)s.uncertainOp=s.pendingOp;stateWrite(s);
 }
 function _receive(result){
  const nonce=String(result?.nonce||'');
@@ -77,6 +77,16 @@ async function synchronize(options={}){
  checking=true;checkAt=Date.now();
  try{
   const remote=await status(),local=state(),data=await hooks.take();
+  if(local.uncertainOp){
+   const previous=await request('ack',{opId:local.uncertainOp});
+   if(previous.ack?.status==='ok'||previous.lastOperationId===local.uncertainOp){
+    stateWrite({...local,rev:previous.ack?.revision??previous.rev,dirty:true,pendingOp:null,uncertainOp:null});
+    return {status:'needs-another-pass',message:'Предыдущая отправка подтверждена. Новые локальные изменения отправятся следующим проходом.'};
+   }
+   if(previous.ack?.status==='conflict'||previous.ack?.status==='error'){
+    stateWrite({...local,pendingOp:null,uncertainOp:null,conflict:previous.ack.status==='conflict'});
+   }else return {status:'uncertain',message:'Идёт проверка предыдущей отправки. Локальные изменения сохранены.'};
+  }
   if(local.rev===null){
    if(remote.rev===0){
     if(hasLocalData(data)&&!options.initialize){
@@ -126,11 +136,10 @@ async function synchronize(options={}){
 }
 function connect(h){
  hooks=h;
- if(config()){
-  window.addEventListener('online',()=>{if(hooks?.idle?.())synchronize().catch(err=>console.warn('Sync:',shortError(err)));});
-  window.addEventListener('focus',()=>{if(Date.now()-checkAt>90000&&hooks?.idle?.())synchronize().catch(err=>console.warn('Sync:',shortError(err)));});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-checkAt>90000&&hooks?.idle?.())synchronize().catch(err=>console.warn('Sync:',shortError(err)));});
- }
+ const trySync=()=>{if(config()&&hooks?.idle?.()&&Date.now()-checkAt>30000)synchronize().catch(err=>console.warn('Sync:',shortError(err)));};
+ window.addEventListener('online',trySync);
+ window.addEventListener('focus',trySync);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')trySync();});
 }
 window.PantryCloud={_receive,saveConfig,disconnect,markDirty,synchronize,connect,config:()=>{const c=config();return c?{url:c.url,connected:true}:null},state,status,get applying(){return applying}};
 })();
