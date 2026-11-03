@@ -10,7 +10,7 @@ const UNITS=['уп.','шт.','кг','г','л','мл'];
 const ICONS={'Молочные продукты':'🥛','Овощи':'🥕','Фрукты':'🍎','Крупы и бобовые':'🌾','Хлеб':'🍞','Напитки':'🫖','Бакалея':'🧂','Заморозка':'❄️','Бытовые товары':'🧻','Другое':'📦'};
 const $=sel=>document.querySelector(sel);
 const main=$('#view');
-let db, page='home', stockQuery='', stockCategory='Все', stockView='all', shoppingInput='', sortStock='name', importDraft=null, busy=false;
+let db, page='home', stockQuery='', stockCategory='Все', stockView='all', shoppingInput='', sortStock='name', importDraft=null, receiptDraft=null, busy=false;
 const E=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const format=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:3}).format(Number(n)||0);
 const formatMoney=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2,style:'currency',currency:'RUB'}).format(Number(n)||0);
@@ -111,9 +111,9 @@ function renderStock(s,rows){
 function renderAudit(s,rows){const list=[...rows].sort((a,b)=>a.name.localeCompare(b.name,'ru'));
   return `<h1>Быстрая ревизия</h1><p class="sub">Впишите, сколько фактически лежит дома, и сохраните только изменения. Сроки и места хранения существующих партий сохраняются при уменьшении остатков.</p>${list.length?`<form data-form="audit"><div class="card">${list.map(r=>`<div class="inline-form" style="padding:11px 0;border-bottom:1px solid var(--line)"><div class="title">${E(r.name)}<div class="meta">Сейчас ${amountText(r.qty,E(r.unit))}</div></div><input type="number" inputmode="decimal" min="0" step="${['уп.','шт.'].includes(r.unit)?1:'any'}" name="audit_${r.id}" data-audit="${r.id}" value="${r.qty}" aria-label="Количество ${E(r.name)}"/><span class="small muted">${E(r.unit)}</span></div>`).join('')}</div><button type="submit" class="btn primary full">Сохранить изменения</button></form>`:empty('📋','Пока нечего проверять','Добавьте товары, чтобы начать ревизию.','<button class="btn primary" data-act="newProduct">＋ Добавить товар</button>')}<div class="spaced"><button class="btn secondary full" data-act="newProduct">Добавить новый товар</button></div>`;
 }
-function renderShopping(s,rows){const list=s.shopping.filter(x=>x.status==='open').sort((a,b)=>a.createdAt.localeCompare(b.createdAt));const restock=needRestock(rows);return `<h1>Покупки</h1><p class="sub">Сначала формируйте список. Домашние запасы меняются только после подтверждения покупки.</p><div class="actions"><button class="btn primary" data-act="newShopping">＋ Добавить</button><button class="btn secondary" data-act="importText">⇪ Импорт текста</button></div>${restock.length?`<div class="card soft spaced"><div class="row"><div class="grow"><div class="title">Есть товары ниже минимума</div><div class="meta">${restock.length} наименований. Можно добавить в закупку до целевого запаса.</div></div><button class="btn small secondary" data-act="restock">Добавить</button></div></div>`:''}${sectionTitle('Список к покупке',`<span class="pill ok">${list.length} поз.</span>`)}${list.length?`<div class="card">${list.map(item=>`<div class="stockrow"><input class="check" type="checkbox" disabled title="Покупка оформляется кнопкой Куплено"/><div class="grow"><div class="name">${E(item.name)}</div><div class="meta">${amountText(item.qty,E(item.unit))}${item.store?' · '+E(item.store):''}</div>${item.note?`<div class="purchase-hint">${E(item.note)}</div>`:''}</div><div class="stack" style="gap:5px"><button class="btn primary small" data-act="buy" data-id="${item.id}">Куплено</button><button class="btn text small" data-act="editShopping" data-id="${item.id}">Изменить</button><button class="btn text small" data-act="deleteShopping" data-id="${item.id}">Убрать</button></div></div>`).join('')}</div>`:empty('🧺','Список пуст','Добавьте нужное или вставьте сообщение с покупками.')}<div class="notice">Кнопка «Куплено» открывает подтверждение количества, срока годности, места хранения и цены. Частично купленная позиция остаётся в списке.</div>`;}
+function renderShopping(s,rows){const list=s.shopping.filter(x=>x.status==='open').sort((a,b)=>a.createdAt.localeCompare(b.createdAt));const restock=needRestock(rows);return `<h1>Покупки</h1><p class="sub">Сначала формируйте список. Домашние запасы меняются только после подтверждения покупки.</p><div class="actions"><button class="btn primary" data-act="newShopping">＋ Добавить</button><button class="btn secondary" data-act="importText">⇪ Импорт текста</button><button class="btn secondary" data-act="receiptInput">▤ Сверить по чеку</button></div>${restock.length?`<div class="card soft spaced"><div class="row"><div class="grow"><div class="title">Есть товары ниже минимума</div><div class="meta">${restock.length} наименований. Можно добавить в закупку до целевого запаса.</div></div><button class="btn small secondary" data-act="restock">Добавить</button></div></div>`:''}${sectionTitle('Список к покупке',`<span class="pill ok">${list.length} поз.</span>`)}${list.length?`<div class="card">${list.map(item=>`<div class="stockrow"><input class="check" type="checkbox" disabled title="Покупка оформляется кнопкой Куплено"/><div class="grow"><div class="name">${E(item.name)}</div><div class="meta">${amountText(item.qty,E(item.unit))}${item.store?' · '+E(item.store):''}</div>${item.note?`<div class="purchase-hint">${E(item.note)}</div>`:''}</div><div class="stack" style="gap:5px"><button class="btn primary small" data-act="buy" data-id="${item.id}">Куплено</button><button class="btn text small" data-act="editShopping" data-id="${item.id}">Изменить</button><button class="btn text small" data-act="deleteShopping" data-id="${item.id}">Убрать</button></div></div>`).join('')}</div>`:empty('🧺','Список пуст','Добавьте нужное или вставьте сообщение с покупками.')}<div class="notice">Кнопка «Куплено» открывает подтверждение количества, срока годности, места хранения и цены. Частично купленная позиция остаётся в списке.</div>`;}
 function renderSettings(s){const backup=s.meta.find(x=>x.id==='lastBackup')?.value;const bytes=JSON.stringify(s).length;const sum=s.movements.filter(x=>x.type==='purchase').reduce((a,x)=>a+(Number(x.amount)||0),0);
-  return `<h1>Настройки и данные</h1><p class="sub">Всё хранится локально на этом устройстве. Учёт не синхронизируется между телефонами.</p>${sectionTitle('Резервные копии')}<div class="card"><div class="title">Google Drive — через сохранение файла</div><p class="sub" style="margin:8px 0">Создайте JSON-копию, затем сохраните файл в Google Drive через меню Android или приложение «Файлы».</p><div class="actions"><button class="btn primary" data-act="backup">↓ Экспорт JSON</button><button class="btn secondary" data-act="restore">↑ Восстановить</button></div><div class="meta">${backup?'Последний экспорт: '+new Date(backup).toLocaleString('ru-RU'):'Резервная копия ещё не создавалась'} · Объём данных: ~${format(Math.ceil(bytes/1024))} КБ</div></div>${sectionTitle('Данные')}<div class="card"><div class="row"><div><div class="title">Товары и партии</div><div class="meta">${s.products.length} товаров · ${s.batches.length} партий</div></div></div><div class="row"><div><div class="title">Операции</div><div class="meta">${s.movements.length} записей · расходы ${formatMoney(sum)}</div></div></div><div class="row"><div class="grow"><div class="title">Экспорт таблицы CSV</div><div class="meta">Для Excel или другой программы</div></div><button class="btn small secondary" data-act="csv">Скачать</button></div></div>${sectionTitle('Проверка и обслуживание')}<div class="card"><button class="btn secondary full" data-act="demo">Добавить демонстрационные товары</button><p class="form-help">Демо-данные добавляются к существующим. Для чистого начала доступен сброс.</p><button class="btn danger full spaced" data-act="reset">Удалить все данные</button></div><button class="btn secondary full spaced" data-act="persistent">Попросить браузер сохранить локальные данные</button><p class="form-help">Браузер может отказать; резервная копия всё равно обязательна.</p><div class="notice">Версия 0.6 · Кликабельные карточки главного экрана, умный импорт с каталогом, заметками и выбором названия. Фотоимпорт, полноценные рекомендации по хранению, замены и расширенная аналитика будут добавлены следующими этапами. Не вводите единственную копию важных данных, пока не проверите экспорт и восстановление.</div>`;
+  return `<h1>Настройки и данные</h1><p class="sub">Всё хранится локально на этом устройстве. Учёт не синхронизируется между телефонами.</p>${sectionTitle('Резервные копии')}<div class="card"><div class="title">Google Drive — через сохранение файла</div><p class="sub" style="margin:8px 0">Создайте JSON-копию, затем сохраните файл в Google Drive через меню Android или приложение «Файлы».</p><div class="actions"><button class="btn primary" data-act="backup">↓ Экспорт JSON</button><button class="btn secondary" data-act="restore">↑ Восстановить</button></div><div class="meta">${backup?'Последний экспорт: '+new Date(backup).toLocaleString('ru-RU'):'Резервная копия ещё не создавалась'} · Объём данных: ~${format(Math.ceil(bytes/1024))} КБ</div></div>${sectionTitle('Данные')}<div class="card"><div class="row"><div><div class="title">Товары и партии</div><div class="meta">${s.products.length} товаров · ${s.batches.length} партий</div></div></div><div class="row"><div><div class="title">Операции</div><div class="meta">${s.movements.length} записей · расходы ${formatMoney(sum)}</div></div></div><div class="row"><div class="grow"><div class="title">Экспорт таблицы CSV</div><div class="meta">Для Excel или другой программы</div></div><button class="btn small secondary" data-act="csv">Скачать</button></div></div>${sectionTitle('Проверка и обслуживание')}<div class="card"><button class="btn secondary full" data-act="demo">Добавить демонстрационные товары</button><p class="form-help">Демо-данные добавляются к существующим. Для чистого начала доступен сброс.</p><button class="btn danger full spaced" data-act="reset">Удалить все данные</button></div><button class="btn secondary full spaced" data-act="persistent">Попросить браузер сохранить локальные данные</button><p class="form-help">Браузер может отказать; резервная копия всё равно обязательна.</p><div class="notice">Версия 0.7 · Импорт чеков и сверка закупок, кликабельные карточки с каталогом, заметками и выбором названия. Фотоимпорт, полноценные рекомендации по хранению, замены и расширенная аналитика будут добавлены следующими этапами. Не вводите единственную копию важных данных, пока не проверите экспорт и восстановление.</div>`;
 }
 function formProduct(p={}){const edit=Boolean(p.id);return `<h2>${edit?'Изменить товар':'Новый товар'}</h2><form data-form="product" data-id="${E(p.id||'')}"><div class="form-grid"><div class="span2"><label>Название *</label><input name="name" placeholder="Например, молоко 2,5%" value="${E(p.name||'')}" required maxlength="120" autofocus /></div><div><label>Категория</label><select name="category">${pickOptions(CATEGORIES,p.category||'Другое')}</select></div><div><label>Единица учёта</label><select name="unit" ${edit?'disabled':''}>${pickOptions(UNITS,p.unit||'уп.')}</select>${edit?'<div class="form-help">Для сохранения остатков единица существующего товара пока не меняется.</div>':''}</div><div><label>Минимум</label><input name="minQty" type="number" inputmode="decimal" min="0" step="any" placeholder="Например, 1" value="${p.minQty!=null?E(p.minQty):''}" /></div><div><label>Целевой запас</label><input name="targetQty" type="number" inputmode="decimal" min="0" step="any" placeholder="Например, 3" value="${p.targetQty!=null?E(p.targetQty):''}" /></div><div><label>Место по умолчанию</label><select name="locationDefault">${locationOptions(p.locationDefault||'Кухонный шкаф')}</select></div><div><label>Предпочтительный магазин</label><select name="store">${pickOptions(['Магнит','ВкусВилл','Другой'],p.store||'',true)}</select></div><div class="span2"><label>Допустимые замены (необязательно)</label><input name="substitutes" placeholder="Например, другой бренд" value="${E(p.substitutes||'')}" /></div>${!edit?`<div><label>Сейчас дома</label><input name="initialQty" type="number" inputmode="decimal" min="0" step="any" value="0" /></div><div><label>Годен до</label><input name="expiry" type="date" /></div>`:''}</div><div class="spaced"><label>Штрихкод / GTIN (необязательно)</label><input name="barcode" inputmode="numeric" pattern="[0-9]{8,14}" placeholder="8–14 цифр" value="${E(p.barcode||'')}" /></div><p class="form-help">Для молока можно выбрать «уп.»: учитываем пакет целиком, даже если его уже открыли. Партию с другой датой добавляйте через «Пополнить».</p>${modalFoot(edit?'Сохранить':'Добавить товар')}</form>`;}
 
@@ -352,6 +352,133 @@ async function restoreFile(file){const raw=await file.text();let data;try{data=v
 }
 function exportCsv(s){const batches=s.batches;const records=s.products.map(p=>{const bs=batches.filter(b=>b.productId===p.id);return [p.name,p.category,p.unit,bs.reduce((a,b)=>a+b.qty,0),p.minQty??'',p.targetQty??'',p.store||'',bs.map(b=>`${b.qty} ${p.unit} (${b.location}, до ${b.expiry||'не указан'})`).join('; ')];});
  const csv=[['Наименование','Категория','Единица','Остаток','Минимум','Цель','Магазин','Партии'],...records].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\r\n');download('\uFEFF'+csv,`domashnie-zapasy-${localDate()}.csv`,'text/csv;charset=utf-8');toast('CSV-файл создан');}
+function modalReceiptInput(value=''){
+ showModal('<h2>Сверка покупок по чеку</h2>'+
+ '<p class="sub">Сфотографируйте бумажный чек, загрузите PDF / изображение / TXT / JSON или вставьте текст электронного чека. Распознавание фото происходит на устройстве (первый запуск требует интернета для загрузки библиотеки).</p>'+
+ '<form data-form="receiptInput"><label>Сфотографировать чек</label>'+
+ '<input type="file" name="camera" accept="image/*" capture="environment" />'+
+ '<label class="spaced">Выбрать чек из файлов</label><input type="file" name="file" accept="image/*,.pdf,application/pdf,.txt,.json" />'+
+ '<label class="spaced">Или вставить текст чека</label><textarea name="text" rows="5" placeholder="Позиции чека с названиями, количествами и ценами">'+E(value)+'</textarea>'+
+ '<div class="notice spaced">Один QR-код кассового чека не содержит перечня товаров. Для получения списка нужен полный электронный или бумажный чек. Импорт не изменяет запасы до вашего подтверждения.</div>'+
+ '<p id="receiptProgress" class="form-help" role="status"></p>'+modalFoot('Распознать чек')+'</form>');
+}
+async function prepareReceipt(formData){
+ if(!window.PantryReceipt)throw Error('Модуль чеков не загрузился. Перезапустите приложение с интернетом.');
+ const file1=formData.get('camera'),file2=formData.get('file'),file=file1?.name?file1:file2?.name?file2:null;
+ const typed=String(formData.get('text')||'').trim();
+ if(!typed&&!file)throw Error('Вставьте текст чека или выберите файл');
+ const feedback=message=>{const el=$('#receiptProgress');if(el)el.textContent=message;};
+ const parsed=typed?{text:typed,source:'Вставленный текст'}:await window.PantryReceipt.extract(file,feedback);
+ const entries=parsed.data||window.PantryReceipt.parseText(parsed.text);
+ if(!entries.length)throw Error('Не удалось выделить товары. Возможно, изображение содержит только QR или текст плохо читается. Попробуйте другой снимок либо вставьте текст электронного чека.');
+ if(entries.length>75)throw Error('Найдено слишком много строк. Проверьте чек или используйте более качественный документ.');
+ const snap=await snapshot();
+ receiptDraft={rows:entries,source:parsed.source,raw:parsed.text,hash:window.PantryReceipt.hash(parsed.text||JSON.stringify(parsed.data))};
+ const cards=entries.map((entry,i)=>{
+  const suggestions=window.PantryReceipt.candidates(entry.name,snap.shopping,snap.products);
+  const top=suggestions[0],defaultMatch=top&&top.score>=90?top.value:'new';
+  const selected=suggestions.find(x=>x.value===defaultMatch);
+  const unit=selected?.unit||entry.unit||'уп.';
+  const options=['<option value="new">Новый товар / не связывать со списком</option>'];
+  for(const x of suggestions)options.push('<option value="'+E(x.value)+'" '+(x.value===defaultMatch?'selected':'')+'>'+E(x.name)+' — '+(x.value.startsWith('shopping:')?'из закупки':'из запасов')+'</option>');
+  const shown=new Set(suggestions.map(x=>x.value));
+  for(const x of snap.shopping.filter(x=>x.status==='open'))if(!shown.has('shopping:'+x.id))
+   options.push('<option value="shopping:'+E(x.id)+'">'+E(x.name)+' — другая позиция из закупки</option>');
+  const flags=entry.flags?.length?entry.flags.join('; '):'';
+  const checked=entry.confidence>=.73?'checked':'';
+  return '<div class="candidate receipt-item" data-receipt-row="'+i+'">'+
+  '<div class="meta"><strong>Чек:</strong> '+E(entry.raw||entry.name)+'</div>'+
+  '<label>Что куплено</label><input maxlength="120" name="receiptName_'+i+'" value="'+E(entry.name)+'" required />'+
+  '<label class="spaced">Связать с запланированной покупкой</label>'+
+  '<select data-receipt-match="'+i+'" name="receiptMatch_'+i+'">'+options.join('')+'</select>'+
+  '<div class="form-grid spaced">'+
+  '<div><label>Количество</label><input name="receiptQty_'+i+'" type="number" min="0.001" step="any" inputmode="decimal" value="'+E(entry.qty||1)+'" required /></div>'+
+  '<div><label>Единица</label><select data-receipt-unit="'+i+'" name="receiptUnit_'+i+'">'+pickOptions(UNITS,unit)+'</select></div>'+
+  '<div><label>Сумма за позицию, ₽</label><input name="receiptAmount_'+i+'" type="number" min="0" step=".01" inputmode="decimal" value="'+E(entry.price??'')+'" /></div>'+
+  '<div><label>Добавить в запасы</label><input class="check" name="receiptInclude_'+i+'" type="checkbox" '+checked+' /></div>'+
+  '</div><details class="receipt-details"><summary>Срок годности и место хранения (необязательно)</summary>'+
+  '<label>Годен до</label><input type="date" name="receiptExpiry_'+i+'" />'+
+  '<label>Место хранения</label><select name="receiptLocation_'+i+'">'+locationOptions('Кухонный шкаф')+'</select></details>'+
+  (flags?'<div class="form-help receipt-warning">'+E(flags)+' — проверьте перед добавлением</div>':'')+
+  '</div>';
+ }).join('');
+ const notice='<div class="notice spaced">**Важно:** отметьте только действительно распознанные покупки. Нажатие «Подтвердить» увеличит домашние запасы и уменьшит соответствующие позиции в закупке. Остальные позиции останутся в списке.</div>';
+ showModal('<h2>Проверка чека · '+entries.length+' поз.</h2>'+
+ '<p class="sub">Сопоставление — предложение, не автоматическое решение. Проверьте количество, название и единицу. Если товара нет в списке покупок, можно внести его как новый.</p>'+
+ '<form data-form="receiptReview">'+cards+notice+modalFoot('Подтвердить покупки')+'</form>');
+}
+async function commitReceipt(formData){
+ if(!receiptDraft)throw Error('Чек не найден. Загрузите его повторно.');
+ const source=receiptDraft.source,hash=receiptDraft.hash;
+ const s=await snapshot();
+ const oldReceipts=s.meta.find(x=>x.id==='receiptHistory')?.value||[];
+ if(oldReceipts.some(x=>x.hash===hash))throw Error('Этот чек уже добавлен. Повторное внесение могло бы удвоить запасы.');
+ const shopping=new Map(s.shopping.filter(x=>x.status==='open').map(x=>[x.id,{...x}]));
+ const products=new Map(s.products.map(x=>[x.id,x]));
+ const newProducts=new Map(),newBatches=[],newMovements=[],qtyCounts=[];
+ let total=0;
+ for(let i=0;i<receiptDraft.rows.length;i++){
+  if(!formData.has('receiptInclude_'+i))continue;
+  const name=String(formData.get('receiptName_'+i)||'').trim().slice(0,120),link=String(formData.get('receiptMatch_'+i)||'new');
+  const quantity=Number(String(formData.get('receiptQty_'+i)||'').replace(',','.'));
+  const unit=String(formData.get('receiptUnit_'+i)||'');
+  const location=String(formData.get('receiptLocation_'+i)||'Кухонный шкаф');
+  const expiry=String(formData.get('receiptExpiry_'+i)||'');
+  const amountText=String(formData.get('receiptAmount_'+i)||'').trim();
+  const amount=amountText===''?null:Number(amountText);
+  if(!name||!Number.isFinite(quantity)||quantity<=0||!UNITS.includes(unit))throw Error('Проверьте название, единицу и количество в строке '+(i+1));
+  if(['шт.','уп.'].includes(unit)&&!Number.isInteger(quantity))throw Error('В строке '+(i+1)+' для штук и упаковок требуется целое количество');
+  if(amount!==null&&(!Number.isFinite(amount)||amount<0))throw Error('Некорректная сумма в строке '+(i+1));
+  let plan=null,product=null;
+  if(link.startsWith('shopping:')){
+   plan=shopping.get(link.slice(9));
+   if(!plan)throw Error('Позиция закупки из строки '+(i+1)+' больше недоступна');
+   if(plan.productId)product=products.get(plan.productId)||null;
+   if(plan.unit!==unit)throw Error('Строка '+(i+1)+': единица в чеке должна совпадать с единицей запланированной покупки ('+plan.unit+'). Исправьте единицу или выберите новый товар.');
+  }else if(link.startsWith('product:')){
+   product=products.get(link.slice(8));
+   if(!product)throw Error('Товар из строки '+(i+1)+' больше недоступен');
+  }else if(link!=='new')throw Error('Неизвестный вариант сопоставления');
+  if(product&&product.unit!==unit)throw Error('Строка '+(i+1)+': единица учёта товара — '+product.unit+'. Исправьте единицу или выберите новый товар.');
+  if(!product){
+   const effectiveName=plan?.name||name,normalized=normName(effectiveName)+'|'+unit;
+   product=[...products.values(),...newProducts.values()].find(x=>normName(x.name)+'|'+x.unit===normalized);
+   if(!product){
+    product={id:uid(),name:effectiveName,category:window.PantryCatalog?.categoryForName(effectiveName)||'Другое',unit,minQty:null,targetQty:null,locationDefault:location,store:plan?.store||'',substitutes:'',createdAt:now(),updatedAt:now()};
+    newProducts.set(product.id,product);
+   }
+  }
+  const batch={id:uid(),productId:product.id,qty:Math.round(quantity*1000)/1000,location,expiry,receivedAt:now()};
+  newBatches.push(batch);
+  const movement={id:uid(),productId:product.id,productName:product.name,unit:product.unit,delta:batch.qty,batchId:batch.id,type:'purchase',at:now(),reason:'Покупка по чеку',note:plan?.note||'',store:plan?.store||'',receiptHash:hash};
+  if(amount!==null){movement.amount=amount;total+=amount;}
+  newMovements.push(movement);
+  qtyCounts.push({name:product.name,qty:batch.qty,unit});
+  if(plan){
+   const remain=Math.round((plan.qty-batch.qty)*1000)/1000;
+   if(remain>0)shopping.set(plan.id,{...plan,qty:remain,updatedAt:now()});
+   else shopping.delete(plan.id);
+  }
+ }
+ if(!newMovements.length)throw Error('Не выбрано ни одной позиции. Отметьте товары, которые действительно куплены.');
+ if(!confirm('Подтвердить '+newMovements.length+' позиций из чека? Запасы увеличатся, а купленные позиции будут уменьшены в списке покупок.'))return null;
+ const entries=s.shopping.filter(x=>x.status==='open');
+ const remaining=[...shopping.values()];
+ const other=s.shopping.filter(x=>x.status!=='open');
+ const past=s.meta.find(x=>x.id==='receiptHistory')?.value||[];
+ const receiptHistory=[...past,{hash,at:now(),source,count:newMovements.length,total:Math.round(total*100)/100}].slice(-70);
+ await writeMany(['products','batches','movements','shopping','meta'],tx=>{
+  const p=tx.objectStore('products'),b=tx.objectStore('batches'),m=tx.objectStore('movements'),sh=tx.objectStore('shopping');
+  for(const x of newProducts.values())p.put(x);
+  for(const x of newBatches)b.put(x);
+  for(const x of newMovements)m.put(x);
+  for(const x of entries)sh.delete(x.id);
+  for(const x of remaining)sh.put(x);
+  tx.objectStore('meta').put({id:'receiptHistory',value:receiptHistory});
+ });
+ receiptDraft=null;
+ return {purchased:qtyCounts,remaining:remaining.filter(x=>x.status==='open'),total};
+}
 function modalImportInput(){showModal(`<h2>Импорт списка из текста</h2><p class="sub">Скопируйте сообщение из Telegram или другого мессенджера. Каждый товар — с новой строки.</p><form data-form="importInput"><label>Сообщение</label><textarea name="text" rows="8" placeholder="Молоко 2 уп.\nГречка 1 уп.\nБананы 5 шт.\nТворог 3 уп." required></textarea><p class="form-help">Пока поддерживается текст. Импорт фотографий появится в следующем этапе разработки.</p>${modalFoot('Распознать')}</form>`);}
 function modalImportReview(entries,source){
  importDraft={entries,source};
@@ -413,6 +540,7 @@ async function doAction(action,id){switch(action){
  case 'buy':{const item=await get('shopping',id),p=item.productId?await get('products',item.productId):null;showModal(formBuy(item,p));break;}
  case 'restock':{const n=await addNeeds(await snapshot());toast(n?`Список обновлён: ${n} поз.`:'Не нужно добавлять: товары уже есть в закупке');await render();break;}
  case 'importText':modalImportInput();break;
+ case 'receiptInput':modalReceiptInput();break;
  case 'backup':await backup();await render();break;
  case 'restore':{
    const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.style.display='none';document.body.append(input);
@@ -446,6 +574,20 @@ async function doForm(form){const fd=new FormData(form),type=form.dataset.form,i
    for(const p of products){const value=fd.get(`audit_${p.id}`);if(value===null)continue;const diff=await auditProduct(p,value);if(diff!==0)n++;}
    await render();toast(n?`Обновлено товаров: ${n}`:'Остатки не изменились');break;
  }
+
+ case 'receiptInput':{
+  await prepareReceipt(fd);
+  break;
+ }
+ case 'receiptReview':{
+  const result=await commitReceipt(fd);
+  if(!result)break;
+  closeModal();await render();
+  const remaining=result.remaining;
+  const message='Внесено покупок: '+result.purchased.length+'.'+(remaining.length?' В закупке осталось: '+remaining.length+' поз.':' Все запланированные позиции закрыты.');
+  toast(message);
+  break;
+ }
  case 'importInput':{
   const txt=String(fd.get('text')||'').trim();if(!txt)throw Error('Вставьте список');const entries=window.PantryCatalog?.parseMessage(txt)||parseList(txt);
   const existing=await all('products'),learned=(await get('meta','importAliases'))?.value||{};
@@ -463,7 +605,17 @@ function setPage(p,view='all'){page=p;stockView=p==='stock'?view:'all';stockQuer
 function events(){
  document.addEventListener('click',async e=>{
   const nav=e.target.closest('[data-page],[data-go]');if(nav){setPage(nav.dataset.page||nav.dataset.go,nav.dataset.stockView||'all');return;}
-  const category=e.target.closest('[data-category]');if(category){stockCategory=category.dataset.category;await render();return;}
+  document.addEventListener('change',async e=>{
+  const pick=e.target.closest('[data-receipt-match]');
+  if(!pick)return;
+  const rowNumber=Number(pick.dataset.receiptMatch),selected=String(pick.value||'new'),card=pick.closest('.receipt-item');
+  const unit=card?.querySelector('[data-receipt-unit]');
+  if(!unit)return;
+  const [kind,key]=selected.split(':');
+  if(kind==='shopping'){const r=await get('shopping',key);if(r)unit.value=r.unit;}
+  if(kind==='product'){const r=await get('products',key);if(r)unit.value=r.unit;}
+ });
+ const category=e.target.closest('[data-category]');if(category){stockCategory=category.dataset.category;await render();return;}
   const renamePick=e.target.closest('[data-rename-choice]');
   if(renamePick){
    e.preventDefault();
