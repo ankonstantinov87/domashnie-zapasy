@@ -1,4 +1,4 @@
-/* Домашние запасы · v0.1 — локальный прототип. Без трекеров, удалённых API и зависимостей. */
+/* Домашние запасы · v0.3 — локальные данные, обновление через service worker. */
 (() => {
 'use strict';
 const DB_NAME='home-pantry-family-v1';
@@ -408,7 +408,39 @@ function events(){
 async function init(){try{
   if(!('indexedDB' in window))throw Error('Браузер не поддерживает IndexedDB. Используйте актуальный Chrome на Android.');
   db=await openDb();events();await render();
-  if('serviceWorker' in navigator && ['https:','http:'].includes(location.protocol))navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Service worker не подключился:',e));
+  if('serviceWorker' in navigator && ['https:','http:'].includes(location.protocol)){
+    const alreadyControlled=Boolean(navigator.serviceWorker.controller);
+    let reloading=false, updatePending=false, lastChecked=0;
+    const showUpdatePrompt=()=>{
+      if(document.querySelector('#updatePrompt'))return;
+      const banner=document.createElement('div');
+      banner.id='updatePrompt';banner.className='update-prompt';banner.setAttribute('role','status');
+      banner.innerHTML='<span>Доступна новая версия приложения</span><button type="button" class="btn primary small">Обновить</button>';
+      banner.querySelector('button').addEventListener('click',()=>{reloading=true;location.reload();});
+      document.body.appendChild(banner);
+    };
+    const applyUpdate=()=>{
+      if(!updatePending||reloading)return;
+      const focused=document.activeElement;
+      const editing=busy||$('#modal')?.open||Boolean(focused?.matches('input, textarea, select, [contenteditable="true"]'));
+      if(editing){showUpdatePrompt();return;}
+      reloading=true;location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(!alreadyControlled)return; // First install, not an update.
+      updatePending=true;
+      applyUpdate();
+    });
+    navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>{
+      const check=()=>{
+        if(Date.now()-lastChecked<30000)return;
+        lastChecked=Date.now();reg.update().catch(err=>console.warn('Проверка обновления:',err));
+      };
+      check();
+      window.addEventListener('focus',check);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){check();if(updatePending)applyUpdate();}});
+    }).catch(err=>console.warn('Service worker не подключился:',err));
+  }
   if(location.protocol==='file:')toast('Для надёжной работы и установки PWA откройте приложение по HTTPS.');
  }catch(err){main.innerHTML=`<div class="card danger-card"><h2>Не удалось открыть приложение</h2><p class="sub">${E(err.message)}</p><p>Откройте его в актуальном Chrome на Android через HTTPS.</p></div>`;}
 }
